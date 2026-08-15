@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+from app.schemas.grievance import GrievanceResponse
 
 class CitizenDashboardResponse(BaseModel):
     total_grievances: int
@@ -9,7 +10,7 @@ class CitizenDashboardResponse(BaseModel):
     closed: int
     reopened: int
     unread_notifications: int
-    recent_grievances: List[Any]  # Use GrievanceResponse internally
+    recent_grievances: List[GrievanceResponse]
 
 class OfficerDashboardResponse(BaseModel):
     assigned_grievances: int

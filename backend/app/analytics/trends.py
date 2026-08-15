@@ -112,6 +112,6 @@ async def get_resolution_time_trend(
     res = await db.execute(query)
     points = []
     for row in res.all():
-        points.append(TrendPoint(timestamp=row[0].isoformat(), value=round(row[1] / 3600.0, 2)))
+        points.append(TrendPoint(timestamp=row[0].isoformat(), value=round(float(row[1]) / 3600.0, 2)))
         
     return TrendResponse(metric="daily_average_resolution_hours", points=points)

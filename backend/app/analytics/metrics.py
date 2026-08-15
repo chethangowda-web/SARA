@@ -79,9 +79,9 @@ async def _get_average_times(db: AsyncSession, department_id: Optional[uuid.UUID
     ack_seconds = ack_avg.scalar_one_or_none() or 0.0
 
     return {
-        "resolution_hours": round(res_seconds / 3600.0, 2),
-        "assignment_hours": round(ass_seconds / 3600.0, 2),
-        "acknowledgement_hours": round(ack_seconds / 3600.0, 2)
+        "resolution_hours": round(float(res_seconds) / 3600.0, 2),
+        "assignment_hours": round(float(ass_seconds) / 3600.0, 2),
+        "acknowledgement_hours": round(float(ack_seconds) / 3600.0, 2)
     }
 
 async def get_global_metrics(db: AsyncSession) -> GlobalMetricsResponse:
@@ -221,8 +221,8 @@ async def get_officer_metrics(db: AsyncSession, officer_id: uuid.UUID) -> Office
         assigned_grievances=assigned,
         active_workload=active,
         completed_grievances=completed,
-        average_acknowledgement_hours=round(ack_seconds / 3600.0, 2),
-        average_resolution_hours=round(res_seconds / 3600.0, 2),
+        average_acknowledgement_hours=round(float(ack_seconds) / 3600.0, 2),
+        average_resolution_hours=round(float(res_seconds) / 3600.0, 2),
         sla_breaches=breaches,
         reopened_grievances=reopened
     )

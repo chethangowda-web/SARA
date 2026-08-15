@@ -16,6 +16,7 @@ from app.schemas.grievance import (
     GrievanceResponse,
     GrievanceVerify,
     GrievanceAssign,
+    GrievanceRoute,
     GrievanceResolve,
     GrievanceEventResponse,
     VerificationAction
@@ -121,11 +122,31 @@ async def list_my_grievances(
             .offset(offset)
             .options(selectinload(Grievance.citizen), selectinload(Grievance.department))
         )
+    elif citizen.role == UserRole.OFFICER:
+        result = await db.execute(
+            select(Grievance)
+            .join(Assignment, Grievance.id == Assignment.grievance_id)
+            .where(Assignment.officer_id == citizen.id, Assignment.is_active == True)
+            .order_by(Grievance.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+            .options(selectinload(Grievance.citizen), selectinload(Grievance.department))
+        )
+    elif citizen.role == UserRole.SUPERVISOR:
+        if citizen.department_id is None:
+            raise HTTPException(status_code=400, detail="Supervisor has no department assigned")
+        result = await db.execute(
+            select(Grievance)
+            .where(Grievance.department_id == citizen.department_id)
+            .order_by(Grievance.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+            .options(selectinload(Grievance.citizen), selectinload(Grievance.department))
+        )
     else:
-        # Officers and supervisors list department or assignments separately
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Use role-specific endpoints to list resources"
+            detail="Unauthorized role listing request"
         )
     return result.scalars().all()
 
@@ -282,6 +303,24 @@ async def list_department_grievances(
             .options(selectinload(Grievance.citizen), selectinload(Grievance.department))
         )
     return result.scalars().all()
+
+# ADMIN: Route grievance to a department (CLASSIFIED -> ROUTED)
+@router.post("/{id}/route", response_model=GrievanceResponse)
+async def route_grievance_to_department(
+    id: uuid.UUID,
+    data: GrievanceRoute,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(RoleChecker([UserRole.ADMIN]))
+):
+    return await transition_grievance(
+        db=db,
+        grievance_id=id,
+        target_state="ROUTED",
+        actor=admin,
+        payload={"department_id": str(data.department_id)},
+        ip_address=request.client.host if request.client else None
+    )
 
 # SUPERVISOR: Assign/reassign officer to grievance
 @router.post("/{id}/assign", response_model=GrievanceResponse)

@@ -14,6 +14,9 @@ class GrievanceCreate(BaseModel):
     description: str = Field(..., min_length=10)
     location: str = Field(..., min_length=3, max_length=255)
 
+class GrievanceRoute(BaseModel):
+    department_id: uuid.UUID
+
 class GrievanceAssign(BaseModel):
     officer_id: uuid.UUID
 

@@ -1,46 +1,39 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AppLayout from '../layouts/AppLayout';
-import StatCard from '../components/ui/StatCard';
-import Button from '../components/ui/Button';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import StatusBadge from '../components/ui/StatusBadge';
-import PriorityBadge from '../components/ui/PriorityBadge';
-import RiskBadge from '../components/ui/RiskBadge';
-import SearchBar from '../components/ui/SearchBar';
-import Modal from '../components/ui/Modal';
-import EmptyState from '../components/ui/EmptyState';
-import { formatApiError } from '../api/client';
+import AppLayout from '../../layouts/AppLayout';
+import Button from '../../components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import StatusBadge from '../../components/ui/StatusBadge';
+import PriorityBadge from '../../components/ui/PriorityBadge';
+import RiskBadge from '../../components/ui/RiskBadge';
+import SearchBar from '../../components/ui/SearchBar';
+import Modal from '../../components/ui/Modal';
+import EmptyState from '../../components/ui/EmptyState';
+import { formatApiError } from '../../api/client';
 import {
-  fetchOfficerDashboard,
   fetchGrievances,
   acknowledgeGrievance,
   startGrievanceWork,
   resolveGrievance,
-} from '../api/grievances';
-import type { OfficerDashboardData, Grievance } from '../types';
-import { useAuth } from '../context/AuthContext';
+} from '../../api/grievances';
+import type { Grievance } from '../../types';
 import {
   Briefcase,
-  Clock,
-  AlertTriangle,
-  Flame,
   Eye,
   Send,
   Play,
   Check,
+  Filter,
 } from 'lucide-react';
 
-export function OfficerDashboard() {
-  const { user } = useAuth();
+export function OfficerAssignedCasesPage() {
   const navigate = useNavigate();
-
-  const [stats, setStats] = useState<OfficerDashboardData | null>(null);
   const [grievances, setGrievances] = useState<Grievance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
   const [targetGrievanceId, setTargetGrievanceId] = useState<string | null>(null);
@@ -51,11 +44,7 @@ export function OfficerDashboard() {
     try {
       setLoading(true);
       setError(null);
-      const [dashData, gList] = await Promise.all([
-        fetchOfficerDashboard(),
-        fetchGrievances(50, 0),
-      ]);
-      setStats(dashData);
+      const gList = await fetchGrievances(100, 0);
       setGrievances(gList || []);
     } catch (err: any) {
       setError(formatApiError(err));
@@ -86,7 +75,6 @@ export function OfficerDashboard() {
       setActionLoading(true);
       setError(null);
       if (currentState === 'ASSIGNED') {
-        // Valid sequence per state machine: ASSIGNED -> ACKNOWLEDGED -> IN_PROGRESS
         await acknowledgeGrievance(id);
       }
       await startGrievanceWork(id);
@@ -116,52 +104,22 @@ export function OfficerDashboard() {
     }
   };
 
-  const renderSlaTimer = (expectedResolution?: string | null, isEscalated?: boolean) => {
-    if (!expectedResolution) {
-      return <span className="text-slate-500 text-xs font-mono">24h Standard SLA</span>;
-    }
-    const target = new Date(expectedResolution).getTime();
-    const now = Date.now();
-    const diffMs = target - now;
-
-    if (diffMs <= 0 || isEscalated) {
-      const overdueHours = Math.abs(Math.round(diffMs / (1000 * 60 * 60)));
-      return (
-        <span className="px-2 py-0.5 rounded bg-red-950/80 text-red-400 font-mono text-xs font-bold border border-red-800">
-          {overdueHours > 0 ? `${overdueHours}h overdue` : 'SLA Breached'}
-        </span>
-      );
-    }
-
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    return (
-      <span className="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 font-mono text-xs font-semibold border border-emerald-800">
-        {hours}h {mins}m remaining
-      </span>
-    );
-  };
-
-  const filteredGrievances = grievances.filter(
-    (g) =>
+  const filteredGrievances = grievances.filter((g) => {
+    const matchesSearch =
       g.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      g.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'ALL' || g.current_state === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
-    <AppLayout title="Officer Operational Workspace" breadcrumb="Workspace">
+    <AppLayout title="Assigned Cases" breadcrumb="Officer Workspace">
       <div className="space-y-6">
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-purple-950/60 via-slate-900 to-blue-950/40 border border-slate-800/80 shadow-2xl flex flex-wrap items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-950 border border-purple-800 text-purple-300 text-xs font-bold uppercase tracking-wider">
-              Authorized Officer Workspace
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Officer: {user?.full_name}
-            </h1>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Manage your assigned grievance pipeline, adhere to SLA countdowns, log evidence, and submit field resolutions.
+        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-white">Assigned Grievance Pipeline</h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Acknowledge incoming assignments, log field work progress, and submit verified resolution notes.
             </p>
           </div>
         </div>
@@ -169,55 +127,39 @@ export function OfficerDashboard() {
         {error && (
           <div className="p-4 bg-red-950/60 border border-red-800 text-red-300 text-xs font-semibold rounded-xl flex items-center justify-between">
             <span>{error}</span>
-            <button onClick={loadData} className="underline font-bold text-red-200">
-              Retry
-            </button>
+            <Button size="sm" onClick={loadData}>Retry</Button>
           </div>
         )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Assigned Workload"
-            value={loading ? '...' : typeof stats?.assigned_grievances === 'number' ? stats.assigned_grievances : grievances.length}
-            colorScheme="purple"
-            icon={<Briefcase className="w-5 h-5" />}
-            subtitle="Active assigned cases"
-          />
-          <StatCard
-            title="Pending Acknowledgement"
-            value={loading ? '...' : stats?.pending_acknowledgement || 0}
-            colorScheme="amber"
-            icon={<AlertTriangle className="w-5 h-5" />}
-            subtitle="Action required"
-          />
-          <StatCard
-            title="In Progress"
-            value={loading ? '...' : stats?.in_progress || 0}
-            colorScheme="blue"
-            icon={<Clock className="w-5 h-5" />}
-            subtitle="Under active work"
-          />
-          <StatCard
-            title="High Risk & Overdue"
-            value={loading ? '...' : (stats?.overdue_grievances || 0) + (stats?.high_risk_grievances || 0)}
-            colorScheme="red"
-            icon={<Flame className="w-5 h-5" />}
-            subtitle="Critical SLA priority"
-          />
-        </div>
 
         <Card>
           <CardHeader className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <CardTitle>
               <Briefcase className="w-5 h-5 text-purple-400" />
-              Assigned Cases Pipeline ({filteredGrievances.length})
+              Assigned Cases ({filteredGrievances.length})
             </CardTitle>
 
-            <SearchBar
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search case ID, title..."
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <SearchBar
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search case ID, title..."
+              />
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-transparent focus:outline-none cursor-pointer text-xs"
+                >
+                  <option value="ALL">All States</option>
+                  <option value="ASSIGNED">Assigned</option>
+                  <option value="ACKNOWLEDGED">Acknowledged</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="VERIFICATION">Verification</option>
+                  <option value="CLOSED">Closed</option>
+                </select>
+              </div>
+            </div>
           </CardHeader>
 
           <CardContent>
@@ -229,8 +171,8 @@ export function OfficerDashboard() {
             ) : filteredGrievances.length === 0 ? (
               <EmptyState
                 icon={<Briefcase className="w-10 h-10 text-slate-500" />}
-                title="No assigned cases"
-                description="You currently have no active grievances assigned to your queue."
+                title="No assigned cases found"
+                description="No active cases match your search or filters."
               />
             ) : (
               <div className="space-y-4">
@@ -248,8 +190,6 @@ export function OfficerDashboard() {
                         <PriorityBadge priority={g.priority} size="sm" />
                         {g.risk_score !== undefined && <RiskBadge score={g.risk_score} size="sm" />}
                       </div>
-
-                      <div>{renderSlaTimer(g.expected_resolution, g.escalated ?? false)}</div>
                     </div>
 
                     <div className="space-y-1">
@@ -362,4 +302,4 @@ export function OfficerDashboard() {
   );
 }
 
-export default OfficerDashboard;
+export default OfficerAssignedCasesPage;

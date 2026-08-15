@@ -154,3 +154,6 @@ cypress/screenshots/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Runtime uploads
+backend/uploads/

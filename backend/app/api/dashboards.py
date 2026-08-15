@@ -20,6 +20,35 @@ from app.schemas.grievance import GrievanceResponse
 
 router = APIRouter(prefix="", tags=["dashboards"])
 
+# ADMIN/SUPERVISOR: List all departments
+@router.get("/admin/departments")
+async def list_all_departments(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(RoleChecker([UserRole.ADMIN, UserRole.SUPERVISOR]))
+):
+    from app.models.department import Department
+    result = await db.execute(select(Department).where(Department.is_active == True))
+    depts = result.scalars().all()
+    return [{"id": str(d.id), "name": d.name, "code": d.code, "is_active": d.is_active} for d in depts]
+
+# ADMIN/SUPERVISOR: List officers (optionally by department)
+@router.get("/admin/officers")
+async def list_officers(
+    department_id: str = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(RoleChecker([UserRole.ADMIN, UserRole.SUPERVISOR]))
+):
+    import uuid as _uuid
+    query = select(User).where(User.role == UserRole.OFFICER, User.is_active == True)
+    if department_id:
+        query = query.where(User.department_id == _uuid.UUID(department_id))
+    elif user.role == UserRole.SUPERVISOR and user.department_id:
+        query = query.where(User.department_id == user.department_id)
+    result = await db.execute(query)
+    officers = result.scalars().all()
+    return [{"id": str(o.id), "full_name": o.full_name, "email": o.email, "department_id": str(o.department_id) if o.department_id else None} for o in officers]
+
+
 @router.get("/citizen/dashboard", response_model=CitizenDashboardResponse)
 async def citizen_dashboard(
     db: AsyncSession = Depends(get_db),
@@ -250,7 +279,7 @@ async def admin_dashboard(
         ).where(Grievance.closed_at.is_not(None))
     )
     avg_seconds = res_time.scalar_one() or 0
-    average_resolution_time_hours = round(avg_seconds / 3600.0, 2)
+    average_resolution_time_hours = round(float(avg_seconds) / 3600.0, 2)
 
     # Officer workload
     res_workload = await db.execute(

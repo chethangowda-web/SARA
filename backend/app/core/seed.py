@@ -33,25 +33,25 @@ async def seed_data(db: AsyncSession):
     # 2. Seed Users (idempotently)
     users_to_seed = [
         {
-            "email": "admin@sara.local",
+            "email": "admin@sara.gov",
             "full_name": "SARA System Administrator",
             "role": UserRole.ADMIN,
             "department_id": None
         },
         {
-            "email": "supervisor@sara.local",
+            "email": "supervisor@sara.gov",
             "full_name": "Electrical Supervisor",
             "role": UserRole.SUPERVISOR,
             "department_id": elec_dept.id
         },
         {
-            "email": "officer@sara.local",
+            "email": "officer@sara.gov",
             "full_name": "Electrical Field Officer",
             "role": UserRole.OFFICER,
             "department_id": elec_dept.id
         },
         {
-            "email": "citizen@sara.local",
+            "email": "citizen@sara.gov",
             "full_name": "Concerned Citizen",
             "role": UserRole.CITIZEN,
             "department_id": None
@@ -74,11 +74,12 @@ async def seed_data(db: AsyncSession):
             db.add(user)
             print(f"[SEED] Created User: {user.email} ({user.role.value})")
         else:
-            # Optionally update fields to ensure consistency
+            # Update fields and password hash to ensure consistency
             user.full_name = user_data["full_name"]
             user.role = user_data["role"]
             user.department_id = user_data["department_id"]
-            print(f"[SEED] User {user.email} already exists. Updated details.")
+            user.password_hash = hashed_pass
+            print(f"[SEED] User {user.email} already exists. Updated password and details.")
             
     await db.commit()
     print("[SEED] Seeding database complete.")

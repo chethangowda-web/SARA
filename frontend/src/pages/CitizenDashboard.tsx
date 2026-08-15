@@ -1,26 +1,52 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import AppLayout from '../layouts/AppLayout';
+import StatCard from '../components/ui/StatCard';
+import Button from '../components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import StatusBadge from '../components/ui/StatusBadge';
+import PriorityBadge from '../components/ui/PriorityBadge';
+import SearchBar from '../components/ui/SearchBar';
+import Modal from '../components/ui/Modal';
+import SubmitGrievanceWizard from '../components/grievances/SubmitGrievanceWizard';
+import EmptyState from '../components/ui/EmptyState';
+import { formatApiError } from '../api/client';
 import { fetchCitizenDashboard } from '../api/grievances';
-import { apiFetch } from '../api/client';
+import type { CitizenDashboardData, Grievance } from '../types';
+import { useAuth } from '../context/AuthContext';
+import {
+  FilePlus,
+  FileText,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Eye,
+  Filter,
+} from 'lucide-react';
 
 export function CitizenDashboard() {
-  const { user, logout } = useAuth();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  // Form State
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
-  const [formError, setFormError] = useState('');
+  const [data, setData] = useState<CitizenDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+
+  // Submit Wizard Modal
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const loadDashboard = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetchCitizenDashboard();
       setData(res);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setError(formatApiError(err));
     } finally {
       setLoading(false);
     }
@@ -30,108 +56,200 @@ export function CitizenDashboard() {
     loadDashboard();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError('');
-    try {
-      await apiFetch('/grievances', {
-        method: 'POST',
-        body: JSON.stringify({ title, description, location })
-      });
-      setTitle('');
-      setDescription('');
-      setLocation('');
-      loadDashboard();
-    } catch (err: any) {
-      setFormError(err.message || 'Failed to submit grievance');
-    }
-  };
+  const grievancesList: Grievance[] = data?.recent_grievances || [];
+
+  const filteredGrievances = grievancesList.filter((g) => {
+    const matchesSearch =
+      g.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      g.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (g.location && g.location.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesStatus = statusFilter === 'ALL' || g.current_state === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
-    <div className="min-h-screen bg-brand-dark text-slate-200">
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-          SARA
-        </h1>
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-slate-400">
-            Welcome, <strong className="text-slate-300">{user?.full_name}</strong> ({user?.role})
-          </span>
-          <button 
-            onClick={() => logout()}
-            className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+    <AppLayout title="Citizen Dashboard" breadcrumb="Overview">
+      <div className="space-y-6">
+        {/* Welcome Header & Action Banner */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-blue-950/60 via-slate-900 to-emerald-950/40 border border-slate-800/80 shadow-2xl flex flex-wrap items-center justify-between gap-6">
+          <div className="space-y-2 max-w-xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-950 border border-blue-800 text-blue-400 text-xs font-bold uppercase tracking-wider">
+              Citizen Portal
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Welcome back, {user?.full_name || 'Citizen'}
+            </h1>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Track your submitted complaints in real-time, view SLA resolution progress, and verify completed resolutions.
+            </p>
+          </div>
+
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => setWizardOpen(true)}
+            icon={<FilePlus className="w-5 h-5" />}
           >
-            Logout
-          </button>
-        </div>
-      </header>
-      
-      <main className="max-w-4xl mx-auto p-6 mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Submit Form */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
-          <h2 className="text-lg font-bold mb-4">Report a Grievance</h2>
-          {formError && <div className="text-red-400 text-xs mb-3">{formError}</div>}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <input 
-              type="text" 
-              placeholder="Title" 
-              required
-              className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-            />
-            <textarea 
-              placeholder="Description" 
-              required
-              rows={3}
-              className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-            />
-            <input 
-              type="text" 
-              placeholder="Location" 
-              required
-              className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-            />
-            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded text-sm transition">
-              Submit
-            </button>
-          </form>
+            Report a Grievance
+          </Button>
         </div>
 
-        {/* Dashboard Stats */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
-          <h2 className="text-lg font-bold">Your Grievances</h2>
-          {loading ? (
-            <div className="text-slate-400 text-sm">Loading...</div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <div className="p-4 bg-slate-950 rounded-lg border border-slate-800">
-                <span className="text-slate-400 text-xs">Total</span>
-                <div className="text-2xl font-black">{data?.total_grievances || 0}</div>
+        {error && (
+          <div className="p-4 bg-red-950/60 border border-red-800 text-red-300 text-xs font-semibold rounded-xl flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={loadDashboard} className="underline font-bold text-red-200">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Dashboard Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="Total Grievances"
+            value={loading ? '...' : data?.total_grievances || 0}
+            colorScheme="blue"
+            icon={<FileText className="w-5 h-5" />}
+            subtitle="Lifetime complaints"
+          />
+          <StatCard
+            title="Active Cases"
+            value={loading ? '...' : data?.in_progress || 0}
+            colorScheme="amber"
+            icon={<Clock className="w-5 h-5" />}
+            subtitle="Under investigation"
+          />
+          <StatCard
+            title="Awaiting Verification"
+            value={loading ? '...' : data?.awaiting_verification || 0}
+            colorScheme="purple"
+            icon={<AlertTriangle className="w-5 h-5" />}
+            subtitle="Action required"
+          />
+          <StatCard
+            title="Resolved / Closed"
+            value={loading ? '...' : data?.closed || 0}
+            colorScheme="emerald"
+            icon={<CheckCircle2 className="w-5 h-5" />}
+            subtitle="Verified complete"
+          />
+        </div>
+
+        {/* Grievance List Container */}
+        <Card>
+          <CardHeader className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <CardTitle>
+              <FileText className="w-5 h-5 text-blue-400" />
+              Your Grievances Overview
+            </CardTitle>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <SearchBar
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search title, ID, location..."
+              />
+
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-transparent focus:outline-none cursor-pointer text-xs"
+                >
+                  <option value="ALL">All States</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="VERIFICATION">Verification</option>
+                  <option value="CLOSED">Closed</option>
+                  <option value="REOPENED">Reopened</option>
+                </select>
               </div>
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-semibold">Recent</span>
-                {data?.recent_grievances?.map((g: any) => (
-                  <div key={g.id} className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-sm flex justify-between items-center">
-                    <div>
-                      <div className="font-bold">{g.title}</div>
-                      <div className="text-xs text-slate-500">{g.id.substring(0,8)}</div>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            {loading ? (
+              <div className="space-y-4 py-4">
+                <div className="h-16 bg-slate-800/40 rounded-xl animate-pulse" />
+                <div className="h-16 bg-slate-800/40 rounded-xl animate-pulse" />
+                <div className="h-16 bg-slate-800/40 rounded-xl animate-pulse" />
+              </div>
+            ) : filteredGrievances.length === 0 ? (
+              <EmptyState
+                icon={<FileText className="w-10 h-10 text-slate-500" />}
+                title="No grievances found"
+                description={
+                  searchQuery || statusFilter !== 'ALL'
+                    ? 'No complaints match your current search and status filters.'
+                    : 'You have not submitted any grievances yet. Click "Report a Grievance" above to log your first issue.'
+                }
+                action={
+                  <Button variant="primary" size="sm" onClick={() => setWizardOpen(true)} icon={<FilePlus className="w-4 h-4" />}>
+                    Report a Grievance
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="space-y-3">
+                {filteredGrievances.map((g) => (
+                  <div
+                    key={g.id}
+                    onClick={() => navigate(`/grievances/${g.id}`)}
+                    className="p-5 bg-slate-950/60 border border-slate-800 hover:border-blue-500/50 rounded-2xl transition cursor-pointer flex flex-wrap items-center justify-between gap-4 group"
+                  >
+                    <div className="space-y-1.5 max-w-xl">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-mono font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/50">
+                          {g.id.substring(0, 8)}
+                        </span>
+                        <StatusBadge state={g.current_state} size="sm" />
+                        <PriorityBadge priority={g.priority} size="sm" />
+                      </div>
+
+                      <h3 className="text-base font-bold text-slate-100 group-hover:text-blue-300 transition">
+                        {g.title}
+                      </h3>
+
+                      <div className="flex items-center gap-4 text-xs text-slate-400 font-medium">
+                        <span>Submitted: {new Date(g.created_at).toLocaleDateString()}</span>
+                        {g.location && <span>• {g.location}</span>}
+                      </div>
                     </div>
-                    <span className="px-2 py-1 bg-slate-800 text-xs rounded text-blue-400">{g.current_state}</span>
+
+                    <div className="flex items-center gap-3">
+                      <Button variant="secondary" size="sm" icon={<Eye className="w-3.5 h-3.5" />}>
+                        View Details
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </CardContent>
+        </Card>
 
-      </main>
-    </div>
+        {/* Submit Grievance Multi-Step Wizard Modal */}
+        <Modal
+          isOpen={wizardOpen}
+          onClose={() => {
+            setWizardOpen(false);
+            loadDashboard();
+          }}
+          title="Submit New Grievance"
+          maxWidth="2xl"
+        >
+          <SubmitGrievanceWizard
+            onClose={() => {
+              setWizardOpen(false);
+              loadDashboard();
+            }}
+          />
+        </Modal>
+      </div>
+    </AppLayout>
   );
 }
+
 export default CitizenDashboard;
