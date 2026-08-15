@@ -160,7 +160,7 @@ async def login(
         "user": user
     }
 
-@router.post("/refresh", response_model=Token, dependencies=[Depends(RateLimiter(5, 60, "ip"))])
+@router.post("/refresh", response_model=Token, dependencies=[Depends(RateLimiter(30, 60, "ip"))])
 async def refresh_tokens(
     request: Request,
     response: Response,

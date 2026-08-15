@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '../layouts/AppLayout';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -63,7 +63,7 @@ export function GrievanceDetailsPage() {
   const [verifySubmitting, setVerifySubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!id) return;
     try {
       setLoading(true);
@@ -82,11 +82,11 @@ export function GrievanceDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     loadData();
-  }, [id]);
+  }, [loadData]);
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();

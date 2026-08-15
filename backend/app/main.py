@@ -49,6 +49,18 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 import uuid
 
+from app.core.seed import seed_data
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    """
+    Ensure reference data (departments + demo users) exists on startup so a
+    fresh deployment is immediately usable.
+    """
+    from app.core.database import SessionLocal
+    async with SessionLocal() as session:
+        await seed_data(session)
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
