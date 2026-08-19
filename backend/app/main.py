@@ -54,7 +54,7 @@ from app.core.seed import seed_data
 @app.on_event("startup")
 async def on_startup() -> None:
     """
-    Ensure reference data (departments + demo users) exists on startup so a
+    Ensure reference data (departments) exists on startup so a
     fresh deployment is immediately usable.
     """
     from app.core.database import SessionLocal

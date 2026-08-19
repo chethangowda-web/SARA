@@ -18,6 +18,7 @@ from app.models.grievance import Grievance
 from app.models.assignment import Assignment
 from app.models.grievance_event import GrievanceEvent
 from app.models.grievance_embedding import GrievanceEmbedding
+from app.models.staff_authorization import StaffAuthorization
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Avatar from '../ui/Avatar';
@@ -57,6 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse, o
       case 'ADMIN':
         return [
           { label: 'SARA Command Center', path: '/admin', exact: true, icon: <LayoutDashboard className="w-5 h-5" /> },
+          { label: 'Staff Management', path: '/admin/staff', icon: <Users className="w-5 h-5" /> },
           { label: 'Departments', path: '/admin/departments', icon: <Building2 className="w-5 h-5" /> },
           { label: 'Analytics & Trends', path: '/admin/analytics', icon: <BarChart3 className="w-5 h-5" /> },
           { label: 'Anomalies & AI', path: '/admin/anomalies', icon: <ShieldAlert className="w-5 h-5" /> },

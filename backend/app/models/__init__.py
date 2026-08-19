@@ -11,3 +11,4 @@ from app.models.governance import SLAPolicy, AccountabilityDossier, Notification
 from app.models.grievance_comment import GrievanceComment
 from app.models.evidence import Evidence
 from app.models.analytics import AnalyticsSnapshot, OperationalAnomaly
+from app.models.staff_authorization import StaffAuthorization

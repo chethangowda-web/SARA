@@ -1,6 +1,6 @@
 import uuid
 import enum
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Enum, func
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Enum, func, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.session import RefreshToken
@@ -36,6 +36,36 @@ class User(Base):
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True
+    )
+    phone: Mapped[str] = mapped_column(
+        String(50), nullable=True
+    )
+    date_of_birth: Mapped[Date] = mapped_column(
+        Date, nullable=True
+    )
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )
+    verification_token: Mapped[str] = mapped_column(
+        String(255), nullable=True
+    )
+    verification_token_expires_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    password_reset_token: Mapped[str] = mapped_column(
+        String(255), nullable=True
+    )
+    password_reset_expires_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    google_subject: Mapped[str] = mapped_column(
+        String(255), nullable=True
+    )
+    auth_provider: Mapped[str] = mapped_column(
+        String(50), server_default="credentials", nullable=False
+    )
+    last_login_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

@@ -1,7 +1,9 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import VerifyEmail from './pages/VerifyEmail';
 
 import CitizenDashboard from './pages/CitizenDashboard';
 import CitizenGrievancesPage from './pages/citizen/CitizenGrievancesPage';
@@ -19,6 +21,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminDepartmentsPage from './pages/admin/AdminDepartmentsPage';
 import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
 import AdminAnomaliesPage from './pages/admin/AdminAnomaliesPage';
+import AdminStaffManagement from './pages/admin/AdminStaffManagement';
 
 import GrievanceDetailsPage from './pages/GrievanceDetailsPage';
 
@@ -42,8 +45,10 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public Login */}
+          {/* Public Login & Register & Verification */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
           {/* Root Redirect */}
           <Route path="/" element={<HomeRedirect />} />
@@ -174,6 +179,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['ADMIN']}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/staff"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AdminStaffManagement />
               </ProtectedRoute>
             }
           />
