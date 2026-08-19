@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, formatApiError, setLocalAccessToken } from '../api/client';
 import Button from '../components/ui/Button';
-import { ShieldCheck, Cpu, TrendingUp, Lock, ArrowRight, CheckCircle2, User, Key, Globe, Eye, EyeOff } from 'lucide-react';
+import { ShieldCheck, Cpu, TrendingUp, Lock, ArrowRight, CheckCircle2, User, Globe, Eye, EyeOff } from 'lucide-react';
 
 type PortalRole = 'CITIZEN' | 'OFFICER' | 'SUPERVISOR' | 'ADMIN';
 

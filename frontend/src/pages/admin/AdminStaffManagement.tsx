@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
 import { apiFetch, formatApiError } from '../../api/client';
-import { Users, UserPlus, ShieldAlert, Building2, CheckCircle2, XCircle, Edit } from 'lucide-react';
+import { Users, UserPlus, ShieldAlert, Building2, XCircle, Edit } from 'lucide-react';
 
 interface StaffAuth {
   id: string;
@@ -400,7 +400,7 @@ export function AdminStaffManagement() {
                           <tr key={inAuth.id} className="hover:bg-slate-800/20 transition opacity-60">
                             <td className="py-3.5 font-semibold text-slate-200">{inAuth.email}</td>
                             <td className="py-3.5 text-slate-400">
-                              <Badge variant="secondary" size="sm">{inAuth.role}</Badge>
+                              <Badge variant="neutral" size="sm">{inAuth.role}</Badge>
                             </td>
                             <td className="py-3.5">{getUserAccountStatus(inAuth.email)}</td>
                             <td className="py-3.5 text-right space-x-2">
