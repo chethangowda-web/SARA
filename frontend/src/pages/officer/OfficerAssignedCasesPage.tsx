@@ -197,9 +197,14 @@ export function OfficerAssignedCasesPage() {
                       <p className="text-xs text-slate-400 line-clamp-2">{g.description}</p>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                      <div className="text-xs text-slate-500 font-mono">
-                        Location: {g.location || 'Not specified'}
+<div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 font-mono">
+                        <span>Location: {g.location || 'Not specified'}</span>
+                        {g.department_name && (
+                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                            {g.department_name}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 flex-wrap">

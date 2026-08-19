@@ -9,6 +9,10 @@ class VerificationAction(str, enum.Enum):
     ACCEPT = "ACCEPT"
     REJECT = "REJECT"
 
+class ReviewAction(str, enum.Enum):
+    APPROVE = "APPROVE"
+    REJECT = "REJECT"
+
 class GrievanceCreate(BaseModel):
     title: str = Field(..., min_length=5, max_length=150)
     description: str = Field(..., min_length=10)
@@ -28,6 +32,28 @@ class GrievanceVerify(BaseModel):
     action: VerificationAction
     reason: Optional[str] = None
 
+class GrievanceReview(BaseModel):
+    action: ReviewAction
+    reason: Optional[str] = None
+
+class GrievanceHoldRequest(BaseModel):
+    reason: str = Field(..., min_length=3)
+    expected_resume_at: datetime
+    note: Optional[str] = None
+    evidence_url: Optional[str] = None
+
+class GrievanceResumeRequest(BaseModel):
+    note: Optional[str] = None
+
+class GrievanceAbortRequest(BaseModel):
+    reason: str = Field(..., min_length=3)
+    note: Optional[str] = None
+    evidence_url: Optional[str] = None
+
+class GrievanceAbortReview(BaseModel):
+    action: ReviewAction
+    reason: Optional[str] = None
+
 class AssignmentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -43,17 +69,26 @@ class GrievanceResponse(BaseModel):
     id: uuid.UUID
     citizen_id: uuid.UUID
     department_id: Optional[uuid.UUID] = None
+    assigned_officer_id: Optional[uuid.UUID] = None
     title: str
     description: str
     location: str
     category: Optional[str] = None
     classification_confidence: Optional[float] = None
     priority: Optional[str] = None
-    priority_score: Optional[int] = None
+    priority_score: Optional[float] = None  # Ensure matching Float database type
     priority_signals: Optional[Dict[str, Any]] = None
     priority_explanation: Optional[str] = None
     summary: Optional[str] = None
     duplicate_info: Optional[Dict[str, Any]] = None
+    
+    # Multilingual fields
+    original_language: Optional[str] = None
+    original_title: Optional[str] = None
+    original_description: Optional[str] = None
+    normalized_title: Optional[str] = None
+    normalized_description: Optional[str] = None
+    
     current_state: str
     created_at: datetime
     updated_at: datetime
@@ -61,6 +96,13 @@ class GrievanceResponse(BaseModel):
     assigned_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
+
+    # Enriched SLA + assignment info (computed by grievance_enrichment)
+    sla_hours: Optional[int] = None
+    expected_resolution: Optional[datetime] = None
+    assigned_officer: Optional[str] = None
+    assigned_officer_id: Optional[uuid.UUID] = None
+    department_name: Optional[str] = None
     
     # Nested helpers for rich API output
     citizen: Optional[UserProfile] = None

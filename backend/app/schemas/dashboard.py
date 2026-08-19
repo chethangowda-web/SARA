@@ -20,16 +20,31 @@ class OfficerDashboardResponse(BaseModel):
     overdue_grievances: int
     high_risk_grievances: int
     unread_notifications: int
+    department_name: Optional[str] = None
 
 class SupervisorDashboardResponse(BaseModel):
+    department_name: Optional[str] = None
+    total_grievances: int
     total_active_grievances: int
+    assigned_grievances: int
+    in_progress_grievances: int
+    resolved_grievances: int
+    unassigned_routed_grievances: int
     overdue_grievances: int
     high_risk_grievances: int
     escalated_grievances: int
-    unassigned_routed_grievances: int
     pending_verification: int
     reopened_grievances: int
     officer_workload: Dict[str, int]
+
+class DepartmentPerformance(BaseModel):
+    id: str
+    name: str
+    total_grievances: int
+    active_grievances: int
+    overdue_grievances: int
+    resolved_grievances: int
+    resolution_rate: float
 
 class AdminDashboardResponse(BaseModel):
     total_grievances: int
@@ -42,3 +57,4 @@ class AdminDashboardResponse(BaseModel):
     reopened_grievances: int
     risk_distribution: Dict[str, int]
     officer_workload: Dict[str, int]
+    department_performance: List[DepartmentPerformance]

@@ -9,9 +9,17 @@ class Grievance(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     citizen_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     department_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("departments.id", ondelete="SET NULL"), nullable=True)
+    assigned_officer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     location: Mapped[str] = mapped_column(String(255), nullable=False)
+    
+    # Multilingual support
+    original_language: Mapped[str] = mapped_column(String(10), default="en", server_default="en", nullable=False)
+    original_title: Mapped[str] = mapped_column(String(255), nullable=True)
+    original_description: Mapped[str] = mapped_column(Text, nullable=True)
+    normalized_title: Mapped[str] = mapped_column(String(255), nullable=True)
+    normalized_description: Mapped[str] = mapped_column(Text, nullable=True)
     
     # AI Placeholders for Milestone 4
     category: Mapped[str] = mapped_column(String(100), nullable=True)
@@ -43,6 +51,7 @@ class Grievance(Base):
     # Relationships
     citizen = relationship("User", foreign_keys=[citizen_id], back_populates="grievances_submitted")
     department = relationship("Department")
+    assigned_officer_rel = relationship("User", foreign_keys=[assigned_officer_id])
     assignments = relationship("Assignment", back_populates="grievance", cascade="all, delete-orphan")
     events = relationship("GrievanceEvent", back_populates="grievance", cascade="all, delete-orphan")
     embedding_record = relationship("GrievanceEmbedding", back_populates="grievance", uselist=False, cascade="all, delete-orphan")

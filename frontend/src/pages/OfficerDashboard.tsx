@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../layouts/AppLayout';
 import StatCard from '../components/ui/StatCard';
@@ -17,6 +17,9 @@ import {
   acknowledgeGrievance,
   startGrievanceWork,
   resolveGrievance,
+  holdGrievance,
+  resumeGrievance,
+  requestAbortGrievance,
 } from '../api/grievances';
 import type { OfficerDashboardData, Grievance } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -29,15 +32,17 @@ import {
   Send,
   Play,
   Check,
+  Sparkles,
 } from 'lucide-react';
 
 export function OfficerDashboard() {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState<OfficerDashboardData | null>(null);
   const [grievances, setGrievances] = useState<Grievance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [switchingDept, setSwitchingDept] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,6 +51,26 @@ export function OfficerDashboard() {
   const [targetGrievanceId, setTargetGrievanceId] = useState<string | null>(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+
+  const [holdModalOpen, setHoldModalOpen] = useState(false);
+  const [abortModalOpen, setAbortModalOpen] = useState(false);
+  const [holdReason, setHoldReason] = useState('');
+  const [holdDate, setHoldDate] = useState('');
+  const [abortReason, setAbortReason] = useState('');
+  const [actionNote, setActionNote] = useState('');
+
+  const switchDepartmentOfficer = async (email: string) => {
+    try {
+      setSwitchingDept(true);
+      setError(null);
+      await login(email, 'SARA_demo_pass_2026');
+      await loadData();
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setSwitchingDept(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -116,6 +141,58 @@ export function OfficerDashboard() {
     }
   };
 
+  const handleHoldSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetGrievanceId || !holdReason || !holdDate) return;
+    try {
+      setActionLoading(true);
+      setError(null);
+      await holdGrievance(targetGrievanceId, holdReason, new Date(holdDate).toISOString(), actionNote);
+      setHoldModalOpen(false);
+      setTargetGrievanceId(null);
+      setHoldReason('');
+      setHoldDate('');
+      setActionNote('');
+      await loadData();
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResume = async (id: string) => {
+    try {
+      setActionLoading(true);
+      setError(null);
+      await resumeGrievance(id);
+      await loadData();
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAbortSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetGrievanceId || !abortReason) return;
+    try {
+      setActionLoading(true);
+      setError(null);
+      await requestAbortGrievance(targetGrievanceId, abortReason, actionNote);
+      setAbortModalOpen(false);
+      setTargetGrievanceId(null);
+      setAbortReason('');
+      setActionNote('');
+      await loadData();
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const renderSlaTimer = (expectedResolution?: string | null, isEscalated?: boolean) => {
     if (!expectedResolution) {
       return <span className="text-slate-500 text-xs font-mono">24h Standard SLA</span>;
@@ -161,8 +238,48 @@ export function OfficerDashboard() {
               Officer: {user?.full_name}
             </h1>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Manage your assigned grievance pipeline, adhere to SLA countdowns, log evidence, and submit field resolutions.
+              <strong className="text-purple-300 font-semibold">{stats?.department_name || user?.department_name || 'Department'}</strong>
+              {' · Manage your assigned grievance pipeline, adhere to SLA countdowns, log evidence, and submit field resolutions.'}
             </p>
+          </div>
+        </div>
+
+        {/* Quick Department Switcher for Demo Evaluation */}
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              Switch Officer Queue by Department:
+            </span>
+            {switchingDept && <span className="text-xs text-purple-400 font-mono animate-pulse">Switching officer session...</span>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { name: '⚡ Electrical', email: 'officer@sara.gov' },
+              { name: '💧 Water', email: 'water.officer@sara.gov' },
+              { name: '🛣️ Roads', email: 'roads.officer01@sara.gov' },
+              { name: '🧹 Sanitation', email: 'sanitation.officer@sara.gov' },
+              { name: '🚮 Waste', email: 'waste.officer01@sara.gov' },
+              { name: '🌊 Drainage', email: 'drainage.officer01@sara.gov' },
+              { name: '💡 Street Light', email: 'streetlighting.officer01@sara.gov' },
+              { name: '🏥 Health', email: 'publichealth.officer01@sara.gov' },
+            ].map((d) => {
+              const isActive = user?.email === d.email;
+              return (
+                <button
+                  key={d.email}
+                  disabled={switchingDept}
+                  onClick={() => switchDepartmentOfficer(d.email)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
+                    isActive
+                      ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-900/50'
+                      : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  {d.name}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -320,6 +437,44 @@ export function OfficerDashboard() {
                             Submit Resolution
                           </Button>
                         )}
+                        
+                        {(g.current_state as string) === 'ON_HOLD' && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            loading={actionLoading}
+                            onClick={() => handleResume(g.id)}
+                            icon={<Play className="w-3.5 h-3.5" />}
+                          >
+                            Resume Work
+                          </Button>
+                        )}
+
+                        {['ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'].includes(g.current_state) && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setTargetGrievanceId(g.id);
+                                setHoldModalOpen(true);
+                              }}
+                            >
+                              Hold
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="text-red-400 border-red-800 hover:bg-red-950/50"
+                              size="sm"
+                              onClick={() => {
+                                setTargetGrievanceId(g.id);
+                                setAbortModalOpen(true);
+                              }}
+                            >
+                              Abort
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -354,6 +509,101 @@ export function OfficerDashboard() {
               <Button type="submit" variant="success" size="sm" loading={actionLoading}>
                 Submit Resolution
               </Button>
+            </div>
+          </form>
+        </Modal>
+
+        <Modal
+          isOpen={holdModalOpen}
+          onClose={() => setHoldModalOpen(false)}
+          title="Place Grievance on Hold"
+          maxWidth="md"
+        >
+          <form onSubmit={handleHoldSubmit} className="space-y-4">
+            <p className="text-xs text-slate-300">
+              Provide a valid reason and an expected date to resume work.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Hold Reason</label>
+              <select
+                required
+                value={holdReason}
+                onChange={(e) => setHoldReason(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+              >
+                <option value="">Select reason...</option>
+                <option value="WAITING_ON_CITIZEN">Waiting on Citizen</option>
+                <option value="WAITING_ON_MATERIALS">Waiting on Materials</option>
+                <option value="WEATHER_CONDITIONS">Weather Conditions</option>
+                <option value="SAFETY_HAZARD">Safety Hazard</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Expected Resume Date/Time</label>
+              <input
+                type="datetime-local"
+                required
+                value={holdDate}
+                onChange={(e) => setHoldDate(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Optional Note</label>
+              <textarea
+                rows={2}
+                value={actionNote}
+                onChange={(e) => setActionNote(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setHoldModalOpen(false)}>Cancel</Button>
+              <Button type="submit" variant="primary" size="sm" loading={actionLoading}>Place on Hold</Button>
+            </div>
+          </form>
+        </Modal>
+
+        <Modal
+          isOpen={abortModalOpen}
+          onClose={() => setAbortModalOpen(false)}
+          title="Request Grievance Abort"
+          maxWidth="md"
+        >
+          <form onSubmit={handleAbortSubmit} className="space-y-4">
+            <p className="text-xs text-slate-300">
+              Request supervisor approval to abort this grievance. This action halts all SLA timers.
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Abort Reason</label>
+              <select
+                required
+                value={abortReason}
+                onChange={(e) => setAbortReason(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+              >
+                <option value="">Select reason...</option>
+                <option value="DUPLICATE_ISSUE">Duplicate Issue</option>
+                <option value="INVALID_COMPLAINT">Invalid Complaint</option>
+                <option value="OUT_OF_JURISDICTION">Out of Jurisdiction</option>
+                <option value="UNRESOLVABLE_TECHNICAL">Unresolvable Technical/Legal Block</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Detailed Explanation</label>
+              <textarea
+                required
+                rows={3}
+                value={actionNote}
+                onChange={(e) => setActionNote(e.target.value)}
+                placeholder="Explain why this grievance must be aborted..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setAbortModalOpen(false)}>Cancel</Button>
+              <Button type="submit" variant="primary" className="bg-red-600 hover:bg-red-700" size="sm" loading={actionLoading}>Submit Abort Request</Button>
             </div>
           </form>
         </Modal>

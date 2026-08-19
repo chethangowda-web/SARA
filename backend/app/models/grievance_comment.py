@@ -13,6 +13,10 @@ class GrievanceComment(Base):
     author_role: Mapped[str] = mapped_column(String(50), nullable=True)
     comment: Mapped[str] = mapped_column(Text, nullable=False)
     
+    # Multilingual support
+    original_language: Mapped[str] = mapped_column(String(10), default="en", server_default="en", nullable=False)
+    normalized_comment: Mapped[str] = mapped_column(Text, nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships

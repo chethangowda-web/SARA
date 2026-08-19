@@ -1,4 +1,4 @@
-﻿export type UserRole = "CITIZEN" | "OFFICER" | "SUPERVISOR" | "ADMIN";
+export type UserRole = "CITIZEN" | "OFFICER" | "SUPERVISOR" | "ADMIN";
 
 export type GrievanceState =
   | "SUBMITTED"
@@ -61,6 +61,14 @@ export interface Grievance {
   escalation_level?: number | null;
   sla_hours?: number | null;
   expected_resolution?: string | null;
+  assigned_officer?: string | null;
+  assigned_officer_id?: string | null;
+  department_name?: string | null;
+  original_language?: string | null;
+  original_title?: string | null;
+  original_description?: string | null;
+  normalized_title?: string | null;
+  normalized_description?: string | null;
   citizen?: Partial<User> | null;
   department?: Partial<Department> | null;
 }
@@ -127,17 +135,33 @@ export interface OfficerDashboardData {
   overdue_grievances: number;
   high_risk_grievances: number;
   unread_notifications: number;
+  department_name?: string | null;
 }
 
 export interface SupervisorDashboardData {
+  department_name?: string | null;
+  total_grievances: number;
   total_active_grievances: number;
+  assigned_grievances: number;
+  in_progress_grievances: number;
+  resolved_grievances: number;
+  unassigned_routed_grievances: number;
   overdue_grievances: number;
   high_risk_grievances: number;
   escalated_grievances: number;
-  unassigned_routed_grievances: number;
   pending_verification: number;
   reopened_grievances: number;
   officer_workload: Record<string, number>;
+}
+
+export interface DepartmentPerformance {
+  id: string;
+  name: string;
+  total_grievances: number;
+  active_grievances: number;
+  overdue_grievances: number;
+  resolved_grievances: number;
+  resolution_rate: number;
 }
 
 export interface AdminDashboardData {
@@ -151,6 +175,7 @@ export interface AdminDashboardData {
   reopened_grievances: number;
   risk_distribution: Record<string, number>;
   officer_workload: Record<string, number>;
+  department_performance: DepartmentPerformance[];
 }
 
 export interface AnalyticsOverview {

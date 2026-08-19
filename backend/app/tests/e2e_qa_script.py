@@ -87,12 +87,19 @@ async def run_e2e_qa():
         
         # Verify AI routing
         assert g_data["category"] is not None
-        assert g_data["current_state"] == "CLASSIFIED"
-        print(f"[PASS] AI classified category: {g_data['category']}")
+        assert g_data["current_state"] in ["CLASSIFIED", "ROUTED", "ASSIGNED"]
+        print(f"[PASS] AI classified category: {g_data['category']}. State: {g_data['current_state']}")
 
-        # Route the first grievance via DB helper
-        await route_grievance_to_elec(g_id)
-        print(f"[PASS] Grievance successfully routed to department.")
+        # Retrieve officer to assign (officer@sara.gov)
+        async with SessionLocal() as session:
+            res_off = await session.execute(text("SELECT id FROM users WHERE email='officer@sara.gov'"))
+            officer_id = str(res_off.scalar())
+
+        # If not routed/assigned, perform manual routing
+        if g_data["current_state"] == "CLASSIFIED":
+            # Route the first grievance via DB helper
+            await route_grievance_to_elec(g_id)
+            print(f"[PASS] Grievance successfully routed to department.")
 
         # 3. Supervisor login
         login_resp = await client.post(
@@ -116,23 +123,36 @@ async def run_e2e_qa():
         assert len(dept_grievances) > 0
         print(f"[PASS] Supervisor fetched department list containing {len(dept_grievances)} grievances.")
 
-        # Retrieve officer to assign
-        # We can seed or fetch officer ID. Since officer@sara.gov is seeded:
-        async with SessionLocal() as session:
-            res_off = await session.execute(text("SELECT id FROM users WHERE email='officer@sara.gov'"))
-            officer_id = str(res_off.scalar())
+        # Fetch current state details
+        g_detail_resp = await client.get(f"{BASE_URL}/grievances/{g_id}", headers=supervisor_headers)
+        g_detail = g_detail_resp.json()
         
-        # 4. Supervisor assign officer
-        assign_resp = await client.post(
-            f"{BASE_URL}/grievances/{g_id}/assign",
-            headers=supervisor_headers,
-            json={"officer_id": officer_id}
-        )
-        if assign_resp.status_code != 200:
-            print(f"[FAIL] Supervisor assignment failed: {assign_resp.status_code} - {assign_resp.text}")
-            sys.exit(1)
-        assert assign_resp.json()["current_state"] == "ASSIGNED"
-        print(f"[PASS] Grievance successfully assigned to Officer. State transitioned to ASSIGNED.")
+        # If not assigned, assign to officer@sara.gov
+        if g_detail["current_state"] in ["CLASSIFIED", "ROUTED"]:
+            # 4. Supervisor assign officer
+            assign_resp = await client.post(
+                f"{BASE_URL}/grievances/{g_id}/assign",
+                headers=supervisor_headers,
+                json={"officer_id": officer_id}
+            )
+            if assign_resp.status_code != 200:
+                print(f"[FAIL] Supervisor assignment failed: {assign_resp.status_code} - {assign_resp.text}")
+                sys.exit(1)
+            assert assign_resp.json()["current_state"] == "ASSIGNED"
+            print(f"[PASS] Grievance successfully assigned to Officer. State transitioned to ASSIGNED.")
+        else:
+            # Grievance is already ASSIGNED. Ensure it is assigned to officer@sara.gov
+            if g_detail.get("assigned_officer_id") != officer_id:
+                # Reassign to officer@sara.gov
+                assign_resp = await client.post(
+                    f"{BASE_URL}/grievances/{g_id}/assign",
+                    headers=supervisor_headers,
+                    json={"officer_id": officer_id}
+                )
+                assert assign_resp.status_code == 200
+                print(f"[PASS] Grievance reassigned to officer@sara.gov for E2E consistency.")
+            else:
+                print(f"[PASS] Grievance already auto-assigned to officer@sara.gov.")
 
         # 5. Officer login
         login_resp = await client.post(
@@ -229,8 +249,18 @@ async def run_e2e_qa():
             json={"resolution_notes": "Replaced damaged transformer and re-tensioned lines."}
         )
         assert resolve_resp.status_code == 200
-        assert resolve_resp.json()["current_state"] == "VERIFICATION"
-        print("[PASS] Officer resolved grievance. State auto-routed to VERIFICATION.")
+        assert resolve_resp.json()["current_state"] == "RESOLUTION_SUBMITTED"
+        print("[PASS] Officer submitted resolution. State: RESOLUTION_SUBMITTED.")
+
+        # 10b. Supervisor review and approve resolution
+        review_resp = await client.post(
+            f"{BASE_URL}/grievances/{g_id}/review",
+            headers=supervisor_headers,
+            json={"action": "APPROVE", "reason": "Verified resolution details."}
+        )
+        assert review_resp.status_code == 200
+        assert review_resp.json()["current_state"] == "VERIFICATION"
+        print("[PASS] Supervisor approved resolution. State: VERIFICATION.")
 
         # 11. Citizen verify resolution (ACCEPT)
         verify_resp = await client.post(
@@ -259,17 +289,30 @@ async def run_e2e_qa():
         g2_id = submit_resp.json()["id"]
         print(f"[PASS] Second grievance submitted. ID: {g2_id}")
 
-        # Route second grievance via DB helper
-        await route_grievance_to_elec(g2_id)
-        print(f"[PASS] Second grievance successfully routed to department.")
+        # Fetch current state details for second grievance
+        g2_detail_resp = await client.get(f"{BASE_URL}/grievances/{g2_id}", headers=supervisor_headers)
+        g2_detail = g2_detail_resp.json()
 
-        # Supervisor assign officer
-        assign_resp = await client.post(
-            f"{BASE_URL}/grievances/{g2_id}/assign",
-            headers=supervisor_headers,
-            json={"officer_id": officer_id}
-        )
-        assert assign_resp.status_code == 200
+        if g2_detail["current_state"] == "CLASSIFIED":
+            # Route second grievance via DB helper
+            await route_grievance_to_elec(g2_id)
+            print(f"[PASS] Second grievance successfully routed to department.")
+
+        # Fetch details again
+        g2_detail_resp = await client.get(f"{BASE_URL}/grievances/{g2_id}", headers=supervisor_headers)
+        g2_detail = g2_detail_resp.json()
+
+        # If not assigned to officer@sara.gov, assign it
+        if g2_detail["current_state"] in ["CLASSIFIED", "ROUTED"] or g2_detail.get("assigned_officer_id") != officer_id:
+            assign_resp = await client.post(
+                f"{BASE_URL}/grievances/{g2_id}/assign",
+                headers=supervisor_headers,
+                json={"officer_id": officer_id}
+            )
+            assert assign_resp.status_code == 200
+            print(f"[PASS] Second grievance assigned/reassigned to officer@sara.gov.")
+        else:
+            print(f"[PASS] Second grievance already assigned to officer@sara.gov.")
 
         # Officer acknowledge
         await client.post(f"{BASE_URL}/grievances/{g2_id}/acknowledge", headers=officer_headers)
@@ -283,6 +326,16 @@ async def run_e2e_qa():
             json={"resolution_notes": "Transformer box tightened."}
         )
         assert resolve_resp.status_code == 200
+        assert resolve_resp.json()["current_state"] == "RESOLUTION_SUBMITTED"
+
+        # Supervisor review and approve resolution
+        review2_resp = await client.post(
+            f"{BASE_URL}/grievances/{g2_id}/review",
+            headers=supervisor_headers,
+            json={"action": "APPROVE", "reason": "Approved for citizen verification."}
+        )
+        assert review2_resp.status_code == 200
+        assert review2_resp.json()["current_state"] == "VERIFICATION"
 
         # Citizen verify resolution (REJECT) -> Reopens and triggers Level 3 Escalation
         verify_resp = await client.post(

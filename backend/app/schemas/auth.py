@@ -28,6 +28,9 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class RefreshTokenIn(BaseModel):
+    refresh_token: Optional[str] = None
+
 class UserProfile(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -35,11 +38,18 @@ class UserProfile(BaseModel):
     full_name: str
     role: UserRole
     department_id: Optional[uuid.UUID] = None
+    department_name: Optional[str] = None
     is_active: bool
+    preferred_language: str = "en"
     created_at: datetime
     updated_at: datetime
 
+class UserSignupResponse(BaseModel):
+    message: str
+    user: UserProfile
+
 class Token(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     user: UserProfile

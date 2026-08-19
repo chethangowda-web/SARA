@@ -19,10 +19,12 @@ VALID_TRANSITIONS: Dict[str, List[str]] = {
     "SUBMITTED": ["CLASSIFIED"],
     "CLASSIFIED": ["ROUTED"],
     "ROUTED": ["ASSIGNED"],
-    "ASSIGNED": ["ACKNOWLEDGED"],
-    "ACKNOWLEDGED": ["IN_PROGRESS"],
-    "IN_PROGRESS": ["RESOLUTION_SUBMITTED"],
-    "RESOLUTION_SUBMITTED": ["VERIFICATION"],
+    "ASSIGNED": ["ACKNOWLEDGED", "ON_HOLD", "ABORT_PENDING_REVIEW"],
+    "ACKNOWLEDGED": ["IN_PROGRESS", "ON_HOLD", "ABORT_PENDING_REVIEW"],
+    "IN_PROGRESS": ["RESOLUTION_SUBMITTED", "ON_HOLD", "ABORT_PENDING_REVIEW"],
+    "ON_HOLD": ["IN_PROGRESS"], # and dynamic previous state
+    "ABORT_PENDING_REVIEW": ["ABORTED", "IN_PROGRESS"], # or dynamic previous state
+    "RESOLUTION_SUBMITTED": ["VERIFICATION", "IN_PROGRESS"],
     "VERIFICATION": ["CLOSED", "REOPENED"],
     "REOPENED": ["ASSIGNED", "ROUTED"]
 }
@@ -210,6 +212,16 @@ async def transition_grievance(
                 raise HTTPException(status_code=400, detail="Invalid department specified")
             
             grievance.department_id = dept_id
+            
+            # Deactivate any active assignments when re-routing
+            res_active = await db.execute(
+                select(Assignment).where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
+            )
+            for old_assign in res_active.scalars().all():
+                old_assign.is_active = False
+                old_assign.unassigned_at = datetime.now(timezone.utc)
+            grievance.assigned_officer_id = None
+            
             event_type = "GRIEVANCE_ROUTED"
             
         elif target_state == "ASSIGNED":
@@ -239,10 +251,6 @@ async def transition_grievance(
                 raise HTTPException(status_code=403, detail="Supervisor can only assign within their department")
                 
             # Handle assignment records: deactivate active ones
-            await db.execute(
-                select(Assignment)
-                .where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
-            )
             res_active = await db.execute(
                 select(Assignment).where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
             )
@@ -256,9 +264,14 @@ async def transition_grievance(
                 grievance_id=grievance.id,
                 officer_id=officer.id,
                 assigned_by=actor.id,
-                is_active=True
+                is_active=True,
+                reason=payload.get("reason"),
+                workload_snapshot=payload.get("workload_snapshot")
             )
             db.add(new_assignment)
+            
+            # Sync assigned_officer_id directly on the grievance
+            grievance.assigned_officer_id = officer.id
             
             # Send notification
             from app.governance.services import create_in_app_notification
@@ -289,17 +302,62 @@ async def transition_grievance(
             event_type = "OFFICER_ACKNOWLEDGED"
             
         elif target_state == "IN_PROGRESS":
-            res_assign = await db.execute(
-                select(Assignment).where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
-            )
-            active_assign = res_assign.scalars().first()
-            if not active_assign:
-                raise HTTPException(status_code=400, detail="No active assignment found for grievance")
+            # Supervisor action (rejection of resolution or rejection of abort request)
+            is_supervisor_action = from_state in ["RESOLUTION_SUBMITTED", "ABORT_PENDING_REVIEW"]
+            if is_supervisor_action:
+                if actor.role == UserRole.SUPERVISOR:
+                    if actor.department_id != grievance.department_id:
+                        raise HTTPException(status_code=403, detail="Supervisor can only review within their department")
+                elif actor.role != UserRole.ADMIN:
+                    raise HTTPException(status_code=403, detail="Only the department supervisor can reject this request")
+                rej_reason = payload.get("reason")
+                if not rej_reason or not rej_reason.strip():
+                    raise HTTPException(status_code=400, detail="Rejection reason explanation is required")
                 
-            if actor.role != UserRole.ADMIN and actor.id != active_assign.officer_id:
-                raise HTTPException(status_code=403, detail="Only the assigned officer can start work")
+                res_assign = await db.execute(
+                    select(Assignment).where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
+                )
+                active_assign = res_assign.scalars().first()
                 
-            event_type = "WORK_STARTED"
+                if from_state == "RESOLUTION_SUBMITTED":
+                    event_type = "RESOLUTION_REJECTED"
+                    if active_assign:
+                        from app.governance.services import create_in_app_notification
+                        await create_in_app_notification(
+                            db=db,
+                            user_id=active_assign.officer_id,
+                            grievance_id=grievance.id,
+                            title="Resolution Requires Rework",
+                            message=f"The resolution for grievance '{grievance.title}' was not approved by the supervisor. Please rework and resubmit.",
+                            notification_type="RESOLUTION_REWORK_REQUESTED"
+                        )
+                else: # ABORT_PENDING_REVIEW
+                    event_type = "ABORT_REJECTED"
+                    if active_assign:
+                        from app.governance.services import create_in_app_notification
+                        await create_in_app_notification(
+                            db=db,
+                            user_id=active_assign.officer_id,
+                            grievance_id=grievance.id,
+                            title="Abort Request Rejected",
+                            message=f"The abort request for grievance '{grievance.title}' was rejected by the supervisor. Please continue work.",
+                            notification_type="ABORT_REJECTED"
+                        )
+            else:
+                res_assign = await db.execute(
+                    select(Assignment).where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
+                )
+                active_assign = res_assign.scalars().first()
+                if not active_assign:
+                    raise HTTPException(status_code=400, detail="No active assignment found for grievance")
+                    
+                if actor.role != UserRole.ADMIN and actor.id != active_assign.officer_id:
+                    raise HTTPException(status_code=403, detail="Only the assigned officer can start work")
+                    
+                if from_state == "ON_HOLD":
+                    event_type = "WORK_RESUMED"
+                else:
+                    event_type = "WORK_STARTED"
             
         elif target_state == "RESOLUTION_SUBMITTED":
             res_assign = await db.execute(
@@ -316,24 +374,57 @@ async def transition_grievance(
             if not res_notes or not res_notes.strip():
                 raise HTTPException(status_code=400, detail="Resolution notes/evidence is required")
                 
-            # Notify citizen
-            from app.governance.services import create_in_app_notification
+            # Notify citizen that resolution has been submitted and awaits department review
+            from app.governance.services import create_in_app_notification, get_department_supervisors
             await create_in_app_notification(
                 db=db,
                 user_id=grievance.citizen_id,
                 grievance_id=grievance.id,
                 title="Resolution Submitted",
-                message=f"The resolution for grievance '{grievance.title}' has been submitted. Please review and verify.",
+                message=f"A resolution for grievance '{grievance.title}' has been submitted and is awaiting department supervisor review.",
                 notification_type="RESOLUTION_SUBMITTED"
             )
+            # Notify department supervisors that a resolution awaits their review
+            if grievance.department_id:
+                for sup in await get_department_supervisors(db, grievance.department_id):
+                    await create_in_app_notification(
+                        db=db,
+                        user_id=sup.id,
+                        grievance_id=grievance.id,
+                        title="Resolution Pending Review",
+                        message=f"A resolution for grievance '{grievance.title}' is awaiting your review.",
+                        notification_type="RESOLUTION_PENDING_REVIEW"
+                    )
             
             grievance.resolved_at = datetime.now(timezone.utc)
             event_type = "RESOLUTION_SUBMITTED"
             
         elif target_state == "VERIFICATION":
-            if actor.role not in [UserRole.ADMIN, UserRole.ADMIN.value]:
-                raise HTTPException(status_code=403, detail="System action only")
-            event_type = "VERIFICATION_STARTED"
+            # Supervisor approval of a submitted resolution:
+            # RESOLUTION_SUBMITTED -> VERIFICATION, performed by the department supervisor.
+            if from_state == "RESOLUTION_SUBMITTED":
+                if actor.role == UserRole.SUPERVISOR:
+                    if actor.department_id != grievance.department_id:
+                        raise HTTPException(status_code=403, detail="Supervisor can only review within their department")
+                    event_type = "RESOLUTION_APPROVED"
+                elif actor.role == UserRole.ADMIN:
+                    event_type = "RESOLUTION_APPROVED"
+                else:
+                    raise HTTPException(status_code=403, detail="Only the department supervisor can approve a resolution")
+                # Notify citizen that resolution is approved and ready to verify
+                from app.governance.services import create_in_app_notification
+                await create_in_app_notification(
+                    db=db,
+                    user_id=grievance.citizen_id,
+                    grievance_id=grievance.id,
+                    title="Resolution Approved",
+                    message=f"The resolution for grievance '{grievance.title}' has been approved. Please verify the resolution.",
+                    notification_type="RESOLUTION_APPROVED"
+                )
+            else:
+                if actor.role not in [UserRole.ADMIN, UserRole.ADMIN.value]:
+                    raise HTTPException(status_code=403, detail="System action only")
+                event_type = "VERIFICATION_STARTED"
             
         elif target_state in ["CLOSED", "REOPENED"]:
             if actor.role != UserRole.ADMIN and actor.id != grievance.citizen_id:
@@ -365,6 +456,51 @@ async def transition_grievance(
                     notification_type="CITIZEN_VERIFICATION"
                 )
                 
+        elif target_state == "ON_HOLD":
+            res_assign = await db.execute(
+                select(Assignment).where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
+            )
+            active_assign = res_assign.scalars().first()
+            if not active_assign:
+                raise HTTPException(status_code=400, detail="No active assignment found for grievance")
+            if actor.role != UserRole.ADMIN and actor.id != active_assign.officer_id:
+                raise HTTPException(status_code=403, detail="Only the assigned officer can put a grievance on hold")
+            
+            payload["previous_status"] = from_state
+            event_type = "GRIEVANCE_HELD"
+
+        elif target_state == "ABORT_PENDING_REVIEW":
+            res_assign = await db.execute(
+                select(Assignment).where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
+            )
+            active_assign = res_assign.scalars().first()
+            if not active_assign:
+                raise HTTPException(status_code=400, detail="No active assignment found for grievance")
+            if actor.role != UserRole.ADMIN and actor.id != active_assign.officer_id:
+                raise HTTPException(status_code=403, detail="Only the assigned officer can request an abort")
+            
+            payload["previous_status"] = from_state
+            event_type = "ABORT_REQUESTED"
+
+        elif target_state == "ABORTED":
+            if actor.role == UserRole.SUPERVISOR:
+                if actor.department_id != grievance.department_id:
+                    raise HTTPException(status_code=403, detail="Supervisor can only review within their department")
+            elif actor.role != UserRole.ADMIN:
+                raise HTTPException(status_code=403, detail="Only the department supervisor can approve an abort")
+            
+            # Deactivate active assignments
+            res_assign = await db.execute(
+                select(Assignment).where(Assignment.grievance_id == grievance.id, Assignment.is_active == True)
+            )
+            active_assign = res_assign.scalars().first()
+            if active_assign:
+                active_assign.is_active = False
+                active_assign.unassigned_at = datetime.now(timezone.utc)
+            
+            grievance.closed_at = datetime.now(timezone.utc)
+            event_type = "ABORT_APPROVED"
+
         else:
             raise HTTPException(status_code=400, detail="Unsupported state transition destination")
 

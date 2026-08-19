@@ -291,14 +291,87 @@ async def test_assigned_officer_work_flow_to_resolution(db_session, test_citizen
         )
         assert res_empty.status_code == 422 # Pydantic min_length validation or backend 400
         
-        # Submit resolution with valid notes -> enters VERIFICATION automatically
+        # Submit resolution with valid notes -> stays RESOLUTION_SUBMITTED awaiting supervisor review
         res_valid = await ac.post(
             f"{settings.API_V1_STR}/grievances/{g.id}/resolve",
             headers={"Authorization": f"Bearer {token_off_a}"},
             json={"resolution_notes": "Repaired leakage by replacing main valve."}
         )
         assert res_valid.status_code == 200
-        assert res_valid.json()["current_state"] == "VERIFICATION"
+        assert res_valid.json()["current_state"] == "RESOLUTION_SUBMITTED"
+
+@pytest.mark.asyncio
+async def test_supervisor_review_resolution_approve_reject(db_session, test_citizen_1, test_supervisor_a, test_supervisor_b, test_officer_a, test_dept_a):
+    from app.services.grievance_service import create_grievance, transition_grievance
+    g = await create_grievance(db_session, test_citizen_1, "Leakage", "Pipeline leakage", "Location")
+
+    system_user = User(id=uuid.uuid4(), email="sys@sara.com", full_name="Sys", password_hash="", role=UserRole.ADMIN, is_active=True)
+    await transition_grievance(db_session, g.id, "CLASSIFIED", system_user)
+    await transition_grievance(db_session, g.id, "ROUTED", system_user, payload={"department_id": str(test_dept_a.id)})
+    await transition_grievance(db_session, g.id, "ASSIGNED", test_supervisor_a, payload={"officer_id": str(test_officer_a.id)})
+    await transition_grievance(db_session, g.id, "ACKNOWLEDGED", test_officer_a)
+    await transition_grievance(db_session, g.id, "IN_PROGRESS", test_officer_a)
+    await transition_grievance(db_session, g.id, "RESOLUTION_SUBMITTED", test_officer_a, payload={"resolution_notes": "Fixed the leak."})
+
+    token_sup_a = create_access_token(test_supervisor_a.id, test_supervisor_a.role.value)
+    token_sup_b = create_access_token(test_supervisor_b.id, test_supervisor_b.role.value)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        # Supervisor B (different department) cannot review
+        res_wrong_dept = await ac.post(
+            f"{settings.API_V1_STR}/grievances/{g.id}/review",
+            headers={"Authorization": f"Bearer {token_sup_b}"},
+            json={"action": "APPROVE"}
+        )
+        assert res_wrong_dept.status_code == 403
+
+        # Supervisor A approves -> VERIFICATION
+        res_approve = await ac.post(
+            f"{settings.API_V1_STR}/grievances/{g.id}/review",
+            headers={"Authorization": f"Bearer {token_sup_a}"},
+            json={"action": "APPROVE"}
+        )
+        assert res_approve.status_code == 200
+        assert res_approve.json()["current_state"] == "VERIFICATION"
+
+    # Rejection flow
+    g2 = await create_grievance(db_session, test_citizen_1, "Leakage 2", "Pipeline leakage 2", "Location 2")
+    await transition_grievance(db_session, g2.id, "CLASSIFIED", system_user)
+    await transition_grievance(db_session, g2.id, "ROUTED", system_user, payload={"department_id": str(test_dept_a.id)})
+    await transition_grievance(db_session, g2.id, "ASSIGNED", test_supervisor_a, payload={"officer_id": str(test_officer_a.id)})
+    await transition_grievance(db_session, g2.id, "ACKNOWLEDGED", test_officer_a)
+    await transition_grievance(db_session, g2.id, "IN_PROGRESS", test_officer_a)
+    await transition_grievance(db_session, g2.id, "RESOLUTION_SUBMITTED", test_officer_a, payload={"resolution_notes": "Fixed."})
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        # Reject without reason -> 400
+        res_reject_no_reason = await ac.post(
+            f"{settings.API_V1_STR}/grievances/{g2.id}/review",
+            headers={"Authorization": f"Bearer {token_sup_a}"},
+            json={"action": "REJECT"}
+        )
+        assert res_reject_no_reason.status_code == 400
+
+        # Reject with reason -> IN_PROGRESS (rework)
+        res_reject = await ac.post(
+            f"{settings.API_V1_STR}/grievances/{g2.id}/review",
+            headers={"Authorization": f"Bearer {token_sup_a}"},
+            json={"action": "REJECT", "reason": "Evidence incomplete. Please resubmit with photos."}
+        )
+        assert res_reject.status_code == 200
+        assert res_reject.json()["current_state"] == "IN_PROGRESS"
+
+    # After rework, officer can resubmit -> RESOLUTION_SUBMITTED again
+    from httpx import AsyncClient as HAC
+    async with HAC(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        token_off_a = create_access_token(test_officer_a.id, test_officer_a.role.value)
+        res_resubmit = await ac.post(
+            f"{settings.API_V1_STR}/grievances/{g2.id}/resolve",
+            headers={"Authorization": f"Bearer {token_off_a}"},
+            json={"resolution_notes": "Updated evidence attached."}
+        )
+        assert res_resubmit.status_code == 200
+        assert res_resubmit.json()["current_state"] == "RESOLUTION_SUBMITTED"
 
 @pytest.mark.asyncio
 async def test_citizen_verification_flow(db_session, test_citizen_1, test_citizen_2, test_supervisor_a, test_officer_a, test_dept_a):

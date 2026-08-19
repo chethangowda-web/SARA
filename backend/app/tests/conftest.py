@@ -32,6 +32,7 @@ async def override_get_db(db_session):
 @pytest_asyncio.fixture(autouse=True)
 async def clean_db(db_session):
     from sqlalchemy import text
+    await db_session.rollback()
     await db_session.execute(text("TRUNCATE TABLE refresh_tokens, audit_logs, users, departments, system_settings, sla_policies, accountability_dossiers, notifications, grievance_comments, evidence, analytics_snapshots, operational_anomalies CASCADE;"))
     await db_session.commit()
     yield

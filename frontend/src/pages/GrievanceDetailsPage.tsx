@@ -19,6 +19,7 @@ import {
   addComment,
   uploadEvidence,
   verifyGrievanceResolution,
+  reviewGrievance,
 } from '../api/grievances';
 import type { Grievance, GrievanceEvent, Evidence, Comment } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -34,6 +35,7 @@ import {
   XCircle,
   FileText,
   ShieldAlert,
+  Volume2,
 } from 'lucide-react';
 
 export function GrievanceDetailsPage() {
@@ -62,6 +64,29 @@ export function GrievanceDetailsPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [verifySubmitting, setVerifySubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Supervisor Review modal
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewAction, setReviewAction] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [reviewReason, setReviewReason] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  const handleSpeak = (text: string, langCode: string) => {
+    if (!window.speechSynthesis) {
+      alert("Speech synthesis is not supported in this browser.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = langCode === 'kn' ? 'kn-IN' : 
+                     langCode === 'hi' ? 'hi-IN' : 
+                     langCode === 'te' ? 'te-IN' : 
+                     langCode === 'ta' ? 'ta-IN' : 
+                     langCode === 'ml' ? 'ml-IN' : 
+                     langCode === 'mr' ? 'mr-IN' : 
+                     langCode === 'bn' ? 'bn-IN' : 'en-US';
+    window.speechSynthesis.speak(utterance);
+  };
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -141,6 +166,32 @@ export function GrievanceDetailsPage() {
     }
   };
 
+  const openReviewModal = (action: 'APPROVE' | 'REJECT') => {
+    setReviewAction(action);
+    setReviewReason('');
+    setReviewModalOpen(true);
+  };
+
+  const handleReview = async () => {
+    if (!id || !reviewAction) return;
+    if (reviewAction === 'REJECT' && !reviewReason.trim()) {
+      alert('Please provide a reason for rejecting the resolution.');
+      return;
+    }
+    try {
+      setReviewSubmitting(true);
+      await reviewGrievance(id, reviewAction, reviewAction === 'REJECT' ? reviewReason : undefined);
+      setReviewModalOpen(false);
+      setReviewAction(null);
+      setReviewReason('');
+      await loadData();
+    } catch (err: any) {
+      alert(formatApiError(err));
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <AppLayout title="Grievance Details" breadcrumb="Track Case">
@@ -163,7 +214,9 @@ export function GrievanceDetailsPage() {
   }
 
   const isCitizen = user?.role === 'CITIZEN';
-  const canVerify = isCitizen && (grievance.current_state === 'VERIFICATION' || grievance.current_state === 'RESOLUTION_SUBMITTED');
+  const isSupervisor = user?.role === 'SUPERVISOR' || user?.role === 'ADMIN';
+  const canVerify = isCitizen && grievance.current_state === 'VERIFICATION';
+  const canReview = isSupervisor && grievance.current_state === 'RESOLUTION_SUBMITTED';
 
   return (
     <AppLayout title={`Grievance ${grievance.id.substring(0, 8)}`} breadcrumb="Case Details">
@@ -197,8 +250,38 @@ export function GrievanceDetailsPage() {
                 {grievance.risk_score !== undefined && <RiskBadge score={grievance.risk_score} />}
               </div>
 
-              <h1 className="text-xl sm:text-2xl font-black text-white">{grievance.title}</h1>
-              <p className="text-sm text-slate-300 leading-relaxed">{grievance.description}</p>
+              <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                <span>{grievance.title}</span>
+                <button
+                  type="button"
+                  onClick={() => handleSpeak(grievance.title, grievance.original_language || 'en')}
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                  title="Speak Original Title"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </button>
+              </h1>
+              <div className="text-sm text-slate-300 leading-relaxed flex items-start gap-2">
+                <span>{grievance.description}</span>
+                <button
+                  type="button"
+                  onClick={() => handleSpeak(grievance.description, grievance.original_language || 'en')}
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition shrink-0"
+                  title="Speak Original Description"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              {grievance.original_language && grievance.original_language !== 'en' && grievance.normalized_title && (
+                <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2 mt-3 max-w-2xl">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 block">
+                    AI Translation (English)
+                  </span>
+                  <h4 className="text-sm font-bold text-slate-200">{grievance.normalized_title}</h4>
+                  <p className="text-xs text-slate-400">{grievance.normalized_description}</p>
+                </div>
+              )}
             </div>
 
             {/* Quick Meta */}
@@ -251,6 +334,39 @@ export function GrievanceDetailsPage() {
                 icon={<XCircle className="w-4 h-4" />}
               >
                 Reject Resolution & Reopen
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Supervisor Resolution Review Panel */}
+        {canReview && (
+          <div className="p-6 rounded-2xl bg-indigo-950/40 border-2 border-indigo-500/50 shadow-2xl space-y-4 animate-pulse">
+            <div className="flex items-center gap-3 text-indigo-300 font-bold text-base">
+              <ShieldAlert className="w-6 h-6 text-indigo-400 shrink-0" />
+              <span>Resolution Pending Your Review</span>
+            </div>
+            <p className="text-sm text-slate-200">
+              The assigned officer has submitted a resolution for this grievance. Review the resolution notes and
+              evidence, then approve it for citizen verification or reject it for rework.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Button
+                variant="success"
+                size="md"
+                onClick={() => openReviewModal('APPROVE')}
+                icon={<CheckCircle2 className="w-4 h-4" />}
+              >
+                Approve Resolution
+              </Button>
+              <Button
+                variant="danger"
+                size="md"
+                onClick={() => openReviewModal('REJECT')}
+                icon={<XCircle className="w-4 h-4" />}
+              >
+                Reject & Request Rework
               </Button>
             </div>
           </div>
@@ -491,6 +607,50 @@ export function GrievanceDetailsPage() {
                 onClick={() => handleVerify(false)}
               >
                 Confirm Reopen
+              </Button>
+            </div>
+          </div>
+        </Modal>
+        {/* Supervisor Review Resolution Modal */}
+        <Modal
+          isOpen={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          title={reviewAction === 'APPROVE' ? 'Approve Resolution' : 'Reject Resolution & Request Rework'}
+          maxWidth="md"
+        >
+          <div className="space-y-4">
+            {reviewAction === 'APPROVE' ? (
+              <p className="text-xs text-slate-300">
+                Approving this resolution will send it to the citizen for verification. Confirm the resolution is
+                complete and satisfactory.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-slate-300">
+                  Rejecting this resolution will return it to the assigned officer for rework. Please provide a reason
+                  for the rejection.
+                </p>
+                <textarea
+                  required
+                  rows={4}
+                  value={reviewReason}
+                  onChange={(e) => setReviewReason(e.target.value)}
+                  placeholder="e.g. Evidence is incomplete; please resubmit with updated photos..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+                />
+              </>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setReviewModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant={reviewAction === 'APPROVE' ? 'success' : 'danger'}
+                size="sm"
+                loading={reviewSubmitting}
+                onClick={handleReview}
+              >
+                {reviewAction === 'APPROVE' ? 'Confirm Approval' : 'Confirm Rejection'}
               </Button>
             </div>
           </div>

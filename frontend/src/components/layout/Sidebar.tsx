@@ -136,14 +136,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse, o
           <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between">
             <div className="flex items-center gap-3 overflow-hidden">
               <Avatar name={user?.full_name} role={user?.role} size="md" />
-              <div className="truncate">
-                <div className="text-xs font-bold text-slate-200 truncate">{user?.full_name}</div>
-                <div className="mt-0.5">
-                  <Badge variant="primary" size="sm">
-                    {user?.role}
-                  </Badge>
+                <div className="truncate">
+                  <div className="text-xs font-bold text-slate-200 truncate">{user?.full_name}</div>
+                  <div className="mt-0.5">
+                    <Badge variant="primary" size="sm">
+                      {user?.role}
+                    </Badge>
+                    {user?.department_name && (
+                      <span className="ml-1.5 text-[10px] text-slate-400 font-medium">
+                        {user.department_name}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
             </div>
           </div>
         ) : (

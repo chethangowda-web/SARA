@@ -10,11 +10,13 @@ from app.models.user import User, UserRole
 from app.models.grievance import Grievance
 from app.models.assignment import Assignment
 from app.models.governance import Notification
+from app.services.grievance_enrichment import enrich_grievances
 from app.schemas.dashboard import (
     CitizenDashboardResponse,
     OfficerDashboardResponse,
     SupervisorDashboardResponse,
-    AdminDashboardResponse
+    AdminDashboardResponse,
+    DepartmentPerformance
 )
 from app.schemas.grievance import GrievanceResponse
 
@@ -92,7 +94,7 @@ async def citizen_dashboard(
         closed=state_counts.get("CLOSED", 0),
         reopened=state_counts.get("REOPENED", 0),
         unread_notifications=unread_notifications,
-        recent_grievances=recent_grievances
+        recent_grievances=await enrich_grievances(db, recent_grievances)
     )
 
 @router.get("/officer/dashboard", response_model=OfficerDashboardResponse)
@@ -147,6 +149,13 @@ async def officer_dashboard(
     )
     unread_notifications = res_notif.scalar_one()
 
+    # Department name (avoid lazy-load in async session)
+    from app.models.department import Department
+    department_name = None
+    if user.department_id:
+        res_dept = await db.execute(select(Department.name).where(Department.id == user.department_id))
+        department_name = res_dept.scalar_one_or_none()
+
     return OfficerDashboardResponse(
         assigned_grievances=assigned_grievances,
         pending_acknowledgement=state_counts.get("ASSIGNED", 0) + state_counts.get("REOPENED", 0),
@@ -154,7 +163,8 @@ async def officer_dashboard(
         resolution_pending_verification=state_counts.get("RESOLUTION_SUBMITTED", 0) + state_counts.get("VERIFICATION", 0),
         overdue_grievances=overdue_grievances,
         high_risk_grievances=high_risk_grievances,
-        unread_notifications=unread_notifications
+        unread_notifications=unread_notifications,
+        department_name=department_name
     )
 
 @router.get("/supervisor/dashboard", response_model=SupervisorDashboardResponse)
@@ -166,6 +176,17 @@ async def supervisor_dashboard(
         raise HTTPException(status_code=400, detail="Supervisor has no department assigned")
 
     dept_id = supervisor.department_id
+
+    # Department name
+    from app.models.department import Department
+    res_dept_name = await db.execute(select(Department.name).where(Department.id == dept_id))
+    department_name = res_dept_name.scalar_one_or_none()
+
+    # Total grievances (all, including closed)
+    res_total_all = await db.execute(
+        select(func.count(Grievance.id)).where(Grievance.department_id == dept_id)
+    )
+    total_grievances = res_total_all.scalar_one()
 
     # Total active grievances (not closed)
     res_active = await db.execute(
@@ -211,12 +232,24 @@ async def supervisor_dashboard(
     )
     officer_workload = {row[0]: row[1] for row in res_workload.all()}
 
+    # Resolved (closed) grievances in department
+    res_closed = await db.execute(
+        select(func.count(Grievance.id))
+        .where(Grievance.department_id == dept_id, Grievance.current_state == "CLOSED")
+    )
+    resolved_grievances = res_closed.scalar_one()
+
     return SupervisorDashboardResponse(
+        department_name=department_name,
+        total_grievances=total_grievances,
         total_active_grievances=total_active_grievances,
+        assigned_grievances=state_counts.get("ASSIGNED", 0),
+        in_progress_grievances=state_counts.get("ACKNOWLEDGED", 0) + state_counts.get("IN_PROGRESS", 0),
+        resolved_grievances=resolved_grievances,
+        unassigned_routed_grievances=state_counts.get("ROUTED", 0),
         overdue_grievances=overdue_grievances,
         high_risk_grievances=high_risk_grievances,
         escalated_grievances=escalated_grievances,
-        unassigned_routed_grievances=state_counts.get("ROUTED", 0),
         pending_verification=state_counts.get("VERIFICATION", 0) + state_counts.get("RESOLUTION_SUBMITTED", 0),
         reopened_grievances=state_counts.get("REOPENED", 0),
         officer_workload=officer_workload
@@ -293,6 +326,39 @@ async def admin_dashboard(
     )
     officer_workload = {row[0]: row[1] for row in res_workload.all()}
 
+    # Per-department performance
+    from app.models.department import Department
+    res_dept_list = await db.execute(select(Department).where(Department.is_active == True))
+    departments = res_dept_list.scalars().all()
+
+    department_performance = []
+    for dept in departments:
+        res_d = await db.execute(
+            select(
+                func.count(Grievance.id),
+                func.sum(case((Grievance.current_state != "CLOSED", 1), else_=0)),
+                func.sum(case((Grievance.escalated == True, 1), else_=0)),
+                func.sum(case((Grievance.current_state == "CLOSED", 1), else_=0)),
+            ).where(Grievance.department_id == dept.id)
+        )
+        row = res_d.first()
+        total = row[0] or 0
+        active = row[1] or 0
+        overdue = row[2] or 0
+        closed = row[3] or 0
+        resolution_rate = round((closed / total) * 100, 1) if total else 100.0
+        department_performance.append(
+            DepartmentPerformance(
+                id=str(dept.id),
+                name=dept.name,
+                total_grievances=total,
+                active_grievances=active,
+                overdue_grievances=overdue,
+                resolved_grievances=closed,
+                resolution_rate=resolution_rate,
+            )
+        )
+
     return AdminDashboardResponse(
         total_grievances=total_grievances,
         grievances_by_department=grievances_by_department,
@@ -303,5 +369,6 @@ async def admin_dashboard(
         average_resolution_time_hours=average_resolution_time_hours,
         reopened_grievances=grievances_by_state.get("REOPENED", 0),
         risk_distribution=risk_distribution,
-        officer_workload=officer_workload
+        officer_workload=officer_workload,
+        department_performance=department_performance
     )

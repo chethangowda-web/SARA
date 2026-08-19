@@ -93,7 +93,10 @@ class MLClassifier(ClassifierProvider):
             elif any(k in combined_text for k in ["road", "pothole", "asphalt", "crater", "pavement"]):
                 predicted_category = "ROAD_INFRASTRUCTURE"
                 confidence = max(confidence, 0.80)
-            elif any(k in combined_text for k in ["garbage", "trash", "waste", "dump"]):
+            elif any(k in combined_text for k in ["garbage", "trash"]):
+                predicted_category = "SANITATION"
+                confidence = max(confidence, 0.75)
+            elif any(k in combined_text for k in ["waste", "dump"]):
                 predicted_category = "WASTE_MANAGEMENT"
                 confidence = max(confidence, 0.75)
                 

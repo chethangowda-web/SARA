@@ -3,7 +3,7 @@ import type { Notification } from '../../types';
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from '../../api/grievances';
 import Button from './Button';
 import EmptyState from './EmptyState';
-import { Bell, CheckCheck, Clock, FileText, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Bell, CheckCheck, Clock, FileText, AlertTriangle, ShieldAlert, Volume2 } from 'lucide-react';
 import { formatApiError } from '../../api/client';
 
 export interface NotificationPanelProps {
@@ -48,6 +48,23 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ onSelectGr
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const speakNotif = (e: React.MouseEvent, title: string, message: string) => {
+    e.stopPropagation();
+    if (!window.speechSynthesis) {
+      alert("Speech synthesis is not supported in this browser.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const textToSpeak = `${title}. ${message}`;
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    
+    const hasKannada = /[\u0C80-\u0CFF]/.test(textToSpeak);
+    const hasHindi = /[\u0900-\u097F]/.test(textToSpeak);
+    
+    utterance.lang = hasKannada ? 'kn-IN' : hasHindi ? 'hi-IN' : 'en-US';
+    window.speechSynthesis.speak(utterance);
   };
 
   const filtered = notifications.filter((n) => (filter === 'unread' ? !n.is_read : true));
@@ -130,9 +147,19 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ onSelectGr
 
               <div className="flex-1 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className={`text-xs font-bold ${notif.is_read ? 'text-slate-300' : 'text-blue-200'}`}>
-                    {notif.title}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-bold ${notif.is_read ? 'text-slate-300' : 'text-blue-200'}`}>
+                      {notif.title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => speakNotif(e, notif.title, notif.message)}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition shrink-0"
+                      title="Read Aloud"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   {!notif.is_read && <span className="w-2 h-2 rounded-full bg-blue-500" />}
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed">{notif.message}</p>

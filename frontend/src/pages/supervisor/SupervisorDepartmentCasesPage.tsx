@@ -10,7 +10,7 @@ import SearchBar from '../../components/ui/SearchBar';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
 import { formatApiError } from '../../api/client';
-import { listDepartmentGrievances, assignOfficerToGrievance, fetchSupervisorDashboard } from '../../api/grievances';
+import { listDepartmentGrievances, assignOfficerToGrievance, fetchSupervisorDashboard, fetchOfficers, type OfficerSummary } from '../../api/grievances';
 import type { Grievance, SupervisorDashboardData } from '../../types';
 import { Building2, Eye, UserPlus, Filter } from 'lucide-react';
 
@@ -24,9 +24,11 @@ export function SupervisorDepartmentCasesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
+const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedGrievanceId, setSelectedGrievanceId] = useState<string | null>(null);
   const [officerId, setOfficerId] = useState('');
+  const [officers, setOfficers] = useState<OfficerSummary[]>([]);
+  const [officersLoading, setOfficersLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
   const loadData = async () => {
@@ -64,6 +66,20 @@ export function SupervisorDepartmentCasesPage() {
       setError(formatApiError(err));
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const openAssignModal = async (grievanceId: string) => {
+    setSelectedGrievanceId(grievanceId);
+    setOfficerId('');
+    setAssignModalOpen(true);
+    setOfficersLoading(true);
+    try {
+      setOfficers((await fetchOfficers()) || []);
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setOfficersLoading(false);
     }
   };
 
@@ -117,7 +133,8 @@ export function SupervisorDepartmentCasesPage() {
                   <option value="ALL">All States</option>
                   <option value="ROUTED">Routed</option>
                   <option value="ASSIGNED">Assigned</option>
-                  <option value="IN_PROGRESS">In Progress</option>
+<option value="IN_PROGRESS">In Progress</option>
+                  <option value="RESOLUTION_SUBMITTED">Pending Review</option>
                   <option value="VERIFICATION">Verification</option>
                   <option value="CLOSED">Closed</option>
                   <option value="REOPENED">Reopened</option>
@@ -169,17 +186,24 @@ export function SupervisorDepartmentCasesPage() {
                       >
                         Details
                       </Button>
-                      {(g.current_state === 'ROUTED' || g.current_state === 'REOPENED') && (
+{(g.current_state === 'ROUTED' || g.current_state === 'REOPENED') && (
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => {
-                            setSelectedGrievanceId(g.id);
-                            setAssignModalOpen(true);
-                          }}
+                          onClick={() => openAssignModal(g.id)}
                           icon={<UserPlus className="w-3.5 h-3.5" />}
                         >
                           Assign Officer
+                        </Button>
+                      )}
+                      {g.current_state === 'RESOLUTION_SUBMITTED' && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => navigate(`/grievances/${g.id}`)}
+                          icon={<Eye className="w-3.5 h-3.5" />}
+                        >
+                          Review Resolution
                         </Button>
                       )}
                     </div>
@@ -196,9 +220,9 @@ export function SupervisorDepartmentCasesPage() {
           title="Assign Grievance to Officer"
           maxWidth="md"
         >
-          <form onSubmit={handleAssignSubmit} className="space-y-4">
+<form onSubmit={handleAssignSubmit} className="space-y-4">
             <p className="text-xs text-slate-300">
-              Enter the Officer UUID to assign to this grievance. (Supervisor role can assign within their department).
+              Select an officer from your department to assign to this grievance. Workload-aware ranking shown below.
             </p>
 
             {supData?.officer_workload && Object.keys(supData.officer_workload).length > 0 && (
@@ -215,16 +239,30 @@ export function SupervisorDepartmentCasesPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                Officer User ID (UUID) *
+                Assign Officer *
               </label>
-              <input
-                type="text"
-                required
-                value={officerId}
-                onChange={(e) => setOfficerId(e.target.value)}
-                placeholder="e.g. 11111111-1111-1111-1111-111111111111"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono"
-              />
+              {officersLoading ? (
+                <div className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />
+              ) : (
+                <select
+                  required
+                  value={officerId}
+                  onChange={(e) => setOfficerId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 cursor-pointer"
+                >
+                  <option value="" disabled>
+                    Select an officer...
+                  </option>
+                  {officers.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.full_name} ({o.email})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {!officersLoading && officers.length === 0 && (
+                <p className="text-[11px] text-red-400 mt-1">No active officers found in this department.</p>
+              )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={() => setAssignModalOpen(false)}>

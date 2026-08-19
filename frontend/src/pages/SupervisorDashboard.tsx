@@ -5,12 +5,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
-import { formatApiError } from '../api/client';
+import Modal from '../components/ui/Modal';
 import {
   fetchSupervisorDashboard,
   fetchAnalyticsAnomalies,
   fetchAnalyticsInsights,
   listDepartmentGrievances,
+  reviewAbortGrievance,
 } from '../api/grievances';
 import type {
   SupervisorDashboardData,
@@ -19,6 +20,7 @@ import type {
   Grievance,
 } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { formatApiError } from '../api/client';
 import {
   Building2,
   Users,
@@ -26,13 +28,12 @@ import {
   BarChart3,
   Sparkles,
   ShieldAlert,
-  Flame,
   ArrowRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export function SupervisorDashboard() {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
 
   const [supData, setSupData] = useState<SupervisorDashboardData | null>(null);
@@ -40,7 +41,47 @@ export function SupervisorDashboard() {
   const [insights, setInsights] = useState<AnalyticsInsight | null>(null);
   const [deptGrievances, setDeptGrievances] = useState<Grievance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [switchingDept, setSwitchingDept] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [abortReviewModalOpen, setAbortReviewModalOpen] = useState(false);
+  const [targetAbortId, setTargetAbortId] = useState<string | null>(null);
+  const [abortReviewAction, setAbortReviewAction] = useState<'APPROVE' | 'REJECT'>('APPROVE');
+  const [abortReviewReason, setAbortReviewReason] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const handleAbortReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetAbortId) return;
+    if (abortReviewAction === 'REJECT' && !abortReviewReason) return;
+    
+    try {
+      setActionLoading(true);
+      setError(null);
+      await reviewAbortGrievance(targetAbortId, abortReviewAction, abortReviewReason);
+      setAbortReviewModalOpen(false);
+      setTargetAbortId(null);
+      setAbortReviewReason('');
+      await loadData();
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const switchDepartmentSupervisor = async (email: string) => {
+    try {
+      setSwitchingDept(true);
+      setError(null);
+      await login(email, 'SARA_demo_pass_2026');
+      await loadData();
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setSwitchingDept(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -68,6 +109,7 @@ export function SupervisorDashboard() {
   }, []);
 
   const escalatedCases = deptGrievances.filter((g) => g.escalated || (g.escalation_level && g.escalation_level > 0));
+  const abortPendingCases = deptGrievances.filter((g) => (g.current_state as string) === 'ABORT_PENDING_REVIEW');
 
   return (
     <AppLayout title="Supervisor Command Center" breadcrumb="Department Workspace">
@@ -82,8 +124,44 @@ export function SupervisorDashboard() {
               Supervisor Workspace ({user?.full_name || 'Department Supervisor'})
             </h1>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Monitor department workload, track active officer assignments, resolve SLA breaches, and manage escalations.
+              <strong className="text-amber-300 font-semibold">{supData?.department_name || user?.department_name || 'Department'}</strong>
+              {' · Monitor department workload, track active officer assignments, resolve SLA breaches, and manage escalations.'}
             </p>
+          </div>
+        </div>
+
+        {/* Quick Department Switcher for Demo Evaluation */}
+        <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Switch Supervisor Department:
+            </span>
+            {switchingDept && <span className="text-xs text-amber-400 font-mono animate-pulse">Switching supervisor session...</span>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { name: '⚡ Electrical', email: 'supervisor@sara.gov' },
+              { name: '💧 Water', email: 'water.supervisor@sara.gov' },
+              { name: '🛣️ Roads', email: 'roads.supervisor@sara.gov' },
+              { name: '🧹 Sanitation', email: 'sanitation.supervisor@sara.gov' },
+            ].map((d) => {
+              const isActive = user?.email === d.email;
+              return (
+                <button
+                  key={d.email}
+                  disabled={switchingDept}
+                  onClick={() => switchDepartmentSupervisor(d.email)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
+                    isActive
+                      ? 'bg-amber-600 border-amber-400 text-white shadow-lg shadow-amber-900/50'
+                      : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  {d.name}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -97,32 +175,32 @@ export function SupervisorDashboard() {
         {/* Department KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="Total Active Grievances"
-            value={loading ? '...' : supData?.total_active_grievances || deptGrievances.length}
+            title="Total Grievances"
+            value={loading ? '...' : supData?.total_grievances ?? supData?.total_active_grievances ?? 0}
             colorScheme="amber"
             icon={<Building2 className="w-5 h-5" />}
-            subtitle="Department active pipeline"
+            subtitle="All-time department cases"
           />
           <StatCard
-            title="SLA Compliance"
-            value={loading ? '...' : `${supData ? (supData.escalated_grievances === 0 ? 100 : Math.max(0, Math.round((1 - supData.escalated_grievances / Math.max(supData.total_active_grievances, 1)) * 100))) : 94}%`}
-            colorScheme="emerald"
+            title="Active Pipeline"
+            value={loading ? '...' : supData?.total_active_grievances ?? 0}
+            colorScheme="blue"
             icon={<BarChart3 className="w-5 h-5" />}
-            subtitle="Resolution compliance rate"
+            subtitle="Open cases (not closed)"
           />
           <StatCard
-            title="Escalated Cases"
-            value={loading ? '...' : supData?.escalated_grievances || escalatedCases.length}
-            colorScheme="red"
-            icon={<AlertTriangle className="w-5 h-5" />}
-            subtitle="Requires immediate review"
-          />
-          <StatCard
-            title="High Risk Cases"
-            value={loading ? '...' : supData?.high_risk_grievances || 0}
+            title="Assigned / In Progress"
+            value={loading ? '...' : `${supData?.assigned_grievances ?? 0} / ${supData?.in_progress_grievances ?? 0}`}
             colorScheme="purple"
-            icon={<Flame className="w-5 h-5" />}
-            subtitle="Critical risk score >= 70"
+            icon={<Users className="w-5 h-5" />}
+            subtitle="Officer workload split"
+          />
+          <StatCard
+            title="Resolved Cases"
+            value={loading ? '...' : supData?.resolved_grievances ?? 0}
+            colorScheme="emerald"
+            icon={<ShieldAlert className="w-5 h-5" />}
+            subtitle="Closed grievances"
           />
         </div>
 
@@ -211,6 +289,54 @@ export function SupervisorDashboard() {
           </Card>
         </div>
 
+        {/* Pending Abort Requests */}
+        {abortPendingCases.length > 0 && (
+          <Card className="bg-red-950/20 border-red-900/50">
+            <CardHeader>
+              <CardTitle className="text-red-300">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+                Pending Abort Requests ({abortPendingCases.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {abortPendingCases.map((g) => (
+                  <div key={g.id} className="p-4 bg-slate-950 border border-red-900/50 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-red-400 font-bold">{g.id.substring(0, 8)}</span>
+                      <Badge variant="danger" size="sm">Review Required</Badge>
+                    </div>
+                    <div className="font-bold text-slate-200 truncate">{g.title}</div>
+                    <p className="text-xs text-slate-400 line-clamp-2">{g.description}</p>
+                    
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/grievances/${g.id}`)}
+                      >
+                        View Details
+                      </Button>
+                      <Button
+                        variant="primary"
+                        className="bg-red-600 hover:bg-red-700"
+                        size="sm"
+                        onClick={() => {
+                          setTargetAbortId(g.id);
+                          setAbortReviewAction('APPROVE');
+                          setAbortReviewModalOpen(true);
+                        }}
+                      >
+                        Review Request
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* AI Operational Insights & Anomalies */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Insights Panel */}
@@ -265,6 +391,61 @@ export function SupervisorDashboard() {
           </Card>
         </div>
       </div>
+
+      <Modal
+        isOpen={abortReviewModalOpen}
+        onClose={() => setAbortReviewModalOpen(false)}
+        title="Review Officer Abort Request"
+        maxWidth="md"
+      >
+        <form onSubmit={handleAbortReviewSubmit} className="space-y-4">
+          <p className="text-xs text-slate-300">
+            An officer has requested to abort this grievance. Approve it to permanently halt the SLA and mark as ABORTED. Rejecting will return the grievance to IN_PROGRESS for rework.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Action</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="abortAction"
+                  checked={abortReviewAction === 'APPROVE'}
+                  onChange={() => setAbortReviewAction('APPROVE')}
+                />
+                <span className="text-slate-200 text-sm font-semibold">Approve Abort</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="abortAction"
+                  checked={abortReviewAction === 'REJECT'}
+                  onChange={() => setAbortReviewAction('REJECT')}
+                />
+                <span className="text-slate-200 text-sm font-semibold">Reject & Rework</span>
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">
+              Review Notes {abortReviewAction === 'REJECT' && <span className="text-red-400">*</span>}
+            </label>
+            <textarea
+              required={abortReviewAction === 'REJECT'}
+              rows={3}
+              value={abortReviewReason}
+              onChange={(e) => setAbortReviewReason(e.target.value)}
+              placeholder={abortReviewAction === 'REJECT' ? 'Reason for rejecting abort request...' : 'Optional approval notes...'}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setAbortReviewModalOpen(false)}>Cancel</Button>
+            <Button type="submit" variant={abortReviewAction === 'APPROVE' ? 'primary' : 'outline'} className={abortReviewAction === 'APPROVE' ? 'bg-red-600 hover:bg-red-700 text-white' : ''} size="sm" loading={actionLoading}>
+              Confirm Decision
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </AppLayout>
   );
 }

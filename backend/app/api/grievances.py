@@ -15,13 +15,20 @@ from app.schemas.grievance import (
     GrievanceCreate,
     GrievanceResponse,
     GrievanceVerify,
+    GrievanceReview,
     GrievanceAssign,
     GrievanceRoute,
     GrievanceResolve,
     GrievanceEventResponse,
-    VerificationAction
+    VerificationAction,
+    ReviewAction,
+    GrievanceHoldRequest,
+    GrievanceResumeRequest,
+    GrievanceAbortRequest,
+    GrievanceAbortReview
 )
 from app.services.grievance_service import create_grievance, transition_grievance
+from app.services.grievance_enrichment import enrich_grievance, enrich_grievances
 from app.core.rate_limiter import RateLimiter
 
 router = APIRouter(prefix="/grievances", tags=["grievances"])
@@ -88,7 +95,8 @@ async def submit_new_grievance(
     )
     # Trigger AI Pipeline (Classify, Priority, Summarize, Vector Embeddings, Duplicate Check)
     from app.ai.pipeline import process_grievance_ai_pipeline
-    return await process_grievance_ai_pipeline(db, grievance.id)
+    processed = await process_grievance_ai_pipeline(db, grievance.id)
+    return await enrich_grievance(db, processed)
 
 # CITIZEN: List own grievances
 @router.get("", response_model=List[GrievanceResponse])
@@ -148,7 +156,7 @@ async def list_my_grievances(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Unauthorized role listing request"
         )
-    return result.scalars().all()
+    return await enrich_grievances(db, result.scalars().all())
 
 # CITIZEN: Get detailed grievance
 @router.get("/{id}", response_model=GrievanceResponse)
@@ -169,7 +177,7 @@ async def get_grievance_detail(
             detail="Grievance not found"
         )
     await _verify_access_auth(grievance, user, db)
-    return grievance
+    return await enrich_grievance(db, grievance)
 
 # CITIZEN: Verify resolution (Accept/Reject)
 @router.post("/{id}/verify", response_model=GrievanceResponse)
@@ -190,7 +198,7 @@ async def verify_grievance_resolution(
     target_state = "CLOSED" if data.action == VerificationAction.ACCEPT else "REOPENED"
     payload = {"reason": data.reason} if data.reason else {}
     
-    return await transition_grievance(
+    g = await transition_grievance(
         db=db,
         grievance_id=id,
         target_state=target_state,
@@ -198,6 +206,7 @@ async def verify_grievance_resolution(
         payload=payload,
         ip_address=request.client.host if request.client else None
     )
+    return await enrich_grievance(db, g)
 
 # OFFICER: Acknowledge assigned grievance
 @router.post("/{id}/acknowledge", response_model=GrievanceResponse)
@@ -207,13 +216,14 @@ async def acknowledge_grievance(
     db: AsyncSession = Depends(get_db),
     officer: User = Depends(get_current_user)
 ):
-    return await transition_grievance(
+    g = await transition_grievance(
         db=db,
         grievance_id=id,
         target_state="ACKNOWLEDGED",
         actor=officer,
         ip_address=request.client.host if request.client else None
     )
+    return await enrich_grievance(db, g)
 
 # OFFICER: Start work on assigned grievance
 @router.post("/{id}/start", response_model=GrievanceResponse)
@@ -223,15 +233,16 @@ async def start_grievance_work(
     db: AsyncSession = Depends(get_db),
     officer: User = Depends(get_current_user)
 ):
-    return await transition_grievance(
+    g = await transition_grievance(
         db=db,
         grievance_id=id,
         target_state="IN_PROGRESS",
         actor=officer,
         ip_address=request.client.host if request.client else None
     )
+    return await enrich_grievance(db, g)
 
-# OFFICER: Submit resolution notes
+# OFFICER: Submit resolution notes (remains RESOLUTION_SUBMITTED until supervisor reviews)
 @router.post("/{id}/resolve", response_model=GrievanceResponse)
 async def resolve_grievance(
     id: uuid.UUID,
@@ -240,7 +251,6 @@ async def resolve_grievance(
     db: AsyncSession = Depends(get_db),
     officer: User = Depends(get_current_user)
 ):
-    # Transition to RESOLUTION_SUBMITTED first
     g = await transition_grievance(
         db=db,
         grievance_id=id,
@@ -249,24 +259,155 @@ async def resolve_grievance(
         payload={"resolution_notes": data.resolution_notes},
         ip_address=request.client.host if request.client else None
     )
-    
-    # Enforce auto-transition immediately into VERIFICATION state via SYSTEM actor
-    system_user = User(
-        id=uuid.UUID("00000000-0000-0000-0000-000000000000"), # Zero-UUID system placeholder
-        email="system@sara.gov",
-        full_name="SARA Automation System",
-        password_hash="",
-        role=UserRole.ADMIN, # System runs with admin privileges
-        is_active=True
-    )
-    
-    return await transition_grievance(
+    return await enrich_grievance(db, g)
+
+# SUPERVISOR: Review submitted resolution (approve -> VERIFICATION, reject -> IN_PROGRESS rework)
+@router.post("/{id}/review", response_model=GrievanceResponse)
+async def review_grievance_resolution(
+    id: uuid.UUID,
+    data: GrievanceReview,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    supervisor: User = Depends(RoleChecker([UserRole.SUPERVISOR, UserRole.ADMIN]))
+):
+    result = await db.execute(select(Grievance).where(Grievance.id == id))
+    grievance = result.scalars().first()
+    if not grievance:
+        raise HTTPException(status_code=404, detail="Grievance not found")
+
+    await _verify_access_auth(grievance, supervisor, db)
+
+    if grievance.current_state != "RESOLUTION_SUBMITTED":
+        raise HTTPException(
+            status_code=400,
+            detail="Only resolutions in RESOLUTION_SUBMITTED state can be reviewed"
+        )
+
+    target_state = "VERIFICATION" if data.action == ReviewAction.APPROVE else "IN_PROGRESS"
+    payload = {"reason": data.reason} if data.reason else {}
+
+    g = await transition_grievance(
         db=db,
         grievance_id=id,
-        target_state="VERIFICATION",
-        actor=system_user,
+        target_state=target_state,
+        actor=supervisor,
+        payload=payload,
         ip_address=request.client.host if request.client else None
     )
+    return await enrich_grievance(db, g)
+
+# OFFICER: Put grievance on hold
+@router.post("/{id}/hold", response_model=GrievanceResponse)
+async def hold_grievance(
+    id: uuid.UUID,
+    data: GrievanceHoldRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    officer: User = Depends(RoleChecker([UserRole.OFFICER, UserRole.ADMIN]))
+):
+    result = await db.execute(select(Grievance).where(Grievance.id == id))
+    grievance = result.scalars().first()
+    if not grievance:
+        raise HTTPException(status_code=404, detail="Grievance not found")
+        
+    await _verify_access_auth(grievance, officer, db)
+
+    g = await transition_grievance(
+        db=db,
+        grievance_id=id,
+        target_state="ON_HOLD",
+        actor=officer,
+        payload=data.model_dump(mode="json"),
+        ip_address=request.client.host if request.client else None
+    )
+    return await enrich_grievance(db, g)
+
+# OFFICER: Resume grievance from hold
+@router.post("/{id}/resume", response_model=GrievanceResponse)
+async def resume_grievance(
+    id: uuid.UUID,
+    data: GrievanceResumeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    officer: User = Depends(RoleChecker([UserRole.OFFICER, UserRole.ADMIN]))
+):
+    result = await db.execute(select(Grievance).where(Grievance.id == id))
+    grievance = result.scalars().first()
+    if not grievance:
+        raise HTTPException(status_code=404, detail="Grievance not found")
+        
+    await _verify_access_auth(grievance, officer, db)
+
+    g = await transition_grievance(
+        db=db,
+        grievance_id=id,
+        target_state="IN_PROGRESS",
+        actor=officer,
+        payload=data.model_dump(mode="json"),
+        ip_address=request.client.host if request.client else None
+    )
+    return await enrich_grievance(db, g)
+
+# OFFICER: Request abort for grievance
+@router.post("/{id}/abort-request", response_model=GrievanceResponse)
+async def request_abort_grievance(
+    id: uuid.UUID,
+    data: GrievanceAbortRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    officer: User = Depends(RoleChecker([UserRole.OFFICER, UserRole.ADMIN]))
+):
+    result = await db.execute(select(Grievance).where(Grievance.id == id))
+    grievance = result.scalars().first()
+    if not grievance:
+        raise HTTPException(status_code=404, detail="Grievance not found")
+        
+    await _verify_access_auth(grievance, officer, db)
+
+    g = await transition_grievance(
+        db=db,
+        grievance_id=id,
+        target_state="ABORT_PENDING_REVIEW",
+        actor=officer,
+        payload=data.model_dump(mode="json"),
+        ip_address=request.client.host if request.client else None
+    )
+    return await enrich_grievance(db, g)
+
+# SUPERVISOR: Review abort request (approve -> ABORTED, reject -> IN_PROGRESS rework)
+@router.post("/{id}/abort-review", response_model=GrievanceResponse)
+async def review_abort_grievance(
+    id: uuid.UUID,
+    data: GrievanceAbortReview,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    supervisor: User = Depends(RoleChecker([UserRole.SUPERVISOR, UserRole.ADMIN]))
+):
+    result = await db.execute(select(Grievance).where(Grievance.id == id))
+    grievance = result.scalars().first()
+    if not grievance:
+        raise HTTPException(status_code=404, detail="Grievance not found")
+
+    await _verify_access_auth(grievance, supervisor, db)
+
+    if grievance.current_state != "ABORT_PENDING_REVIEW":
+        raise HTTPException(
+            status_code=400,
+            detail="Only grievances in ABORT_PENDING_REVIEW state can be reviewed for abort"
+        )
+
+    target_state = "ABORTED" if data.action == ReviewAction.APPROVE else "IN_PROGRESS"
+    payload = {"reason": data.reason} if data.reason else {}
+
+    g = await transition_grievance(
+        db=db,
+        grievance_id=id,
+        target_state=target_state,
+        actor=supervisor,
+        payload=payload,
+        ip_address=request.client.host if request.client else None
+    )
+    return await enrich_grievance(db, g)
 
 # SUPERVISOR: List department grievances
 @router.get("/department/list", response_model=List[GrievanceResponse])
@@ -302,7 +443,7 @@ async def list_department_grievances(
             .offset(offset)
             .options(selectinload(Grievance.citizen), selectinload(Grievance.department))
         )
-    return result.scalars().all()
+    return await enrich_grievances(db, result.scalars().all())
 
 # ADMIN: Route grievance to a department (CLASSIFIED -> ROUTED)
 @router.post("/{id}/route", response_model=GrievanceResponse)
@@ -313,7 +454,7 @@ async def route_grievance_to_department(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(RoleChecker([UserRole.ADMIN]))
 ):
-    return await transition_grievance(
+    g = await transition_grievance(
         db=db,
         grievance_id=id,
         target_state="ROUTED",
@@ -321,6 +462,7 @@ async def route_grievance_to_department(
         payload={"department_id": str(data.department_id)},
         ip_address=request.client.host if request.client else None
     )
+    return await enrich_grievance(db, g)
 
 # SUPERVISOR: Assign/reassign officer to grievance
 @router.post("/{id}/assign", response_model=GrievanceResponse)
@@ -331,7 +473,7 @@ async def assign_grievance_officer(
     db: AsyncSession = Depends(get_db),
     supervisor: User = Depends(RoleChecker([UserRole.SUPERVISOR, UserRole.ADMIN]))
 ):
-    return await transition_grievance(
+    g = await transition_grievance(
         db=db,
         grievance_id=id,
         target_state="ASSIGNED",
@@ -339,6 +481,7 @@ async def assign_grievance_officer(
         payload={"officer_id": str(data.officer_id)},
         ip_address=request.client.host if request.client else None
     )
+    return await enrich_grievance(db, g)
 
 # SHARED: Get chronological event timeline
 @router.get("/{id}/timeline", response_model=List[GrievanceEventResponse])

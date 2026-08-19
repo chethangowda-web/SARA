@@ -1,7 +1,8 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth, getDashboardRoute } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 
 import CitizenDashboard from './pages/CitizenDashboard';
 import CitizenGrievancesPage from './pages/citizen/CitizenGrievancesPage';
@@ -24,17 +25,24 @@ import GrievanceDetailsPage from './pages/GrievanceDetailsPage';
 
 // Root-level redirect to user workspace based on role
 function HomeRedirect() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-300 animate-fadeIn">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+          <p className="text-sm font-medium tracking-wider">Verifying session...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role === 'CITIZEN') return <Navigate to="/citizen" replace />;
-  if (user.role === 'OFFICER') return <Navigate to="/officer" replace />;
-  if (user.role === 'SUPERVISOR') return <Navigate to="/supervisor" replace />;
-  if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
-
-  return <Navigate to="/login" replace />;
+  const route = getDashboardRoute(user.role);
+  return <Navigate to={route} replace />;
 }
 
 function App() {
@@ -42,8 +50,9 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public Login */}
+          {/* Public Login & Signup */}
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
 
           {/* Root Redirect */}
           <Route path="/" element={<HomeRedirect />} />

@@ -1,5 +1,11 @@
-import { createContext, useState, useEffect, useContext, type ReactNode } from 'react';
-import { apiFetch, setLocalAccessToken } from '../api/client';
+import { createContext, useState, useEffect, useContext, useRef, type ReactNode } from 'react';
+import {
+  apiFetch,
+  setAuthTokens,
+  clearAuthTokens,
+  setUnauthorizedHandler,
+  restoreSession,
+} from '../api/client';
 
 export interface UserProfile {
   id: string;
@@ -7,6 +13,7 @@ export interface UserProfile {
   full_name: string;
   role: string;
   department_id: string | null;
+  department_name?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -14,81 +21,100 @@ export interface UserProfile {
 
 interface AuthContextType {
   user: UserProfile | null;
-  accessToken: string | null;
-  loading: boolean;
+  isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (fullName: string, email: string, password: string, preferredLanguage?: string) => Promise<void>;
   logout: () => Promise<void>;
-  refreshAccessToken: () => Promise<string | null>;
+}
+
+export function getDashboardRoute(role: string): string {
+  if (role === 'CITIZEN') return '/citizen';
+  if (role === 'OFFICER') return '/officer';
+  if (role === 'SUPERVISOR') return '/supervisor';
+  if (role === 'ADMIN') return '/admin';
+  return '/login';
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const handledUnauthorizedRef = useRef(false);
 
-  // Sync access token to local storage only if required, but task specifies: "DO NOT store the access token in localStorage."
-  // So the access token is strictly kept in memory (React state).
-  // On page refresh, the AuthProvider calls refreshAccessToken() to restore the session.
-
-  const refreshAccessToken = async (): Promise<string | null> => {
-    try {
-      const data = await apiFetch<{ access_token: string; user: UserProfile }>('/auth/refresh', {
-        method: 'POST',
-      });
-      setAccessToken(data.access_token);
-      setUser(data.user);
-      // Store token in memory/state and update authorization header
-      setLocalAccessToken(data.access_token);
-      return data.access_token;
-    } catch {
-      // Refresh token expired or absent: clear state
-      setAccessToken(null);
+  // Global 401 handling: clear auth state so ProtectedRoute redirects to /login.
+  useEffect(() => {
+    handledUnauthorizedRef.current = false;
+    setUnauthorizedHandler(() => {
+      handledUnauthorizedRef.current = true;
       setUser(null);
-      setLocalAccessToken(null);
-      return null;
-    }
-  };
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // Session restoration on app load
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const result = await restoreSession();
+      if (cancelled) return;
+      if (result) {
+        setUser(result.user as UserProfile);
+        setLoading(false);
+      } else {
+        if (!handledUnauthorizedRef.current) {
+          setUser(null);
+        }
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const login = async (email: string, password: string) => {
-    const data = await apiFetch<{ access_token: string; user: UserProfile }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    setAccessToken(data.access_token);
+    const data = await apiFetch<{ access_token: string; user: UserProfile }>(
+      '/auth/login',
+      { method: 'POST', body: JSON.stringify({ email, password }) }
+    );
+    setAuthTokens(data.access_token);
     setUser(data.user);
-    setLocalAccessToken(data.access_token);
+  };
+
+  const signup = async (fullName: string, email: string, password: string, preferredLanguage: string = 'en') => {
+    await apiFetch<{ message: string; user: UserProfile }>(
+      '/auth/signup',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          password,
+          full_name: fullName,
+          preferred_language: preferredLanguage
+        })
+      }
+    );
   };
 
   const logout = async () => {
     try {
-      await apiFetch('/auth/logout', { method: 'POST' });
+      await apiFetch('/auth/logout', {
+        method: 'POST',
+      });
     } catch {
       // Proceed with local logout regardless of server response
     } finally {
-      setAccessToken(null);
+      clearAuthTokens();
       setUser(null);
-      setLocalAccessToken(null);
     }
   };
 
-  useEffect(() => {
-    // Attempt session restoration on mount
-    refreshAccessToken().finally(() => {
-      setLoading(false);
-    });
-
-    // Auto-refresh token every 28 minutes to keep it valid (access token life: 30m)
-    const interval = setInterval(() => {
-      refreshAccessToken();
-    }, 28 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, []);
+  const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, login, logout, refreshAccessToken }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading: loading, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

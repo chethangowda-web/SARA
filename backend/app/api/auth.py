@@ -1,6 +1,7 @@
 import uuid
 import hashlib
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -17,15 +18,35 @@ from app.core.security import (
 from app.core.dependencies import get_current_user
 from app.models.user import User, UserRole
 from app.models.session import RefreshToken
-from app.schemas.auth import UserRegister, UserLogin, UserProfile, Token
+from app.schemas.auth import UserRegister, UserLogin, UserProfile, Token, RefreshTokenIn, UserSignupResponse
 from app.services.audit_service import log_security_event
 from app.core.rate_limiter import RateLimiter
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 def _hash_token(token: str) -> str:
     """Helper to sha256 hash refresh tokens for database storage."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+def _serialize_user(user: User) -> dict:
+    """Serialize a User (with department relationship loaded) to a profile dict."""
+    department_name = None
+    department = getattr(user, "department", None)
+    if department is not None:
+        department_name = department.name
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role.value,
+        "department_id": str(user.department_id) if user.department_id else None,
+        "department_name": department_name,
+        "is_active": user.is_active,
+        "preferred_language": user.preferred_language,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
 
 def _set_refresh_cookie(response: Response, token: str):
     """Set the refresh token cookie with security flags."""
@@ -52,8 +73,9 @@ async def register(
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
+    email_norm = data.email.strip().lower()
     # Check if user already exists
-    result = await db.execute(select(User).where(User.email == data.email))
+    result = await db.execute(select(User).where(User.email == email_norm))
     existing_user = result.scalars().first()
     if existing_user:
         await log_security_event(
@@ -68,7 +90,7 @@ async def register(
     
     # Hash password and create citizen user (enforced Citizen role for public registration)
     new_user = User(
-        email=data.email,
+        email=email_norm,
         full_name=data.full_name,
         password_hash=hash_password(data.password),
         role=UserRole.CITIZEN,
@@ -88,7 +110,55 @@ async def register(
     )
     await db.commit()
     
-    return new_user
+    return _serialize_user(new_user)
+
+@router.post("/signup", response_model=UserSignupResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(RateLimiter(5, 60, "ip"))])
+async def signup(
+    data: UserRegister, 
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    email_norm = data.email.strip().lower()
+    # Check if user already exists
+    result = await db.execute(select(User).where(User.email == email_norm))
+    existing_user = result.scalars().first()
+    if existing_user:
+        await log_security_event(
+            db,
+            action="REGISTRATION_FAILED_DUPLICATE",
+            ip_address=request.client.host if request.client else None
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email address already registered"
+        )
+    
+    # Hash password and create citizen user (enforced Citizen role for public registration)
+    new_user = User(
+        email=email_norm,
+        full_name=data.full_name,
+        password_hash=hash_password(data.password),
+        role=UserRole.CITIZEN,
+        is_active=True
+    )
+    db.add(new_user)
+    await db.flush() # Populate ID
+    
+    await log_security_event(
+        db,
+        action="USER_CREATED",
+        actor_id=new_user.id,
+        actor_role="CITIZEN",
+        resource_type="user",
+        resource_id=new_user.id,
+        ip_address=request.client.host if request.client else None
+    )
+    await db.commit()
+    
+    return {
+        "message": "Account created successfully",
+        "user": _serialize_user(new_user)
+    }
 
 @router.post("/login", response_model=Token, dependencies=[Depends(RateLimiter(5, 60, "ip"))])
 async def login(
@@ -103,8 +173,12 @@ async def login(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    email_norm = data.email.strip().lower()
+
     # Fetch user
-    result = await db.execute(select(User).where(User.email == data.email))
+    result = await db.execute(
+        select(User).where(User.email == email_norm).options(selectinload(User.department))
+    )
     user = result.scalars().first()
     
     if not user or not user.is_active:
@@ -156,21 +230,24 @@ async def login(
     _set_refresh_cookie(response, refresh_token)
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
-        "user": user
+        "user": _serialize_user(user)
     }
 
 @router.post("/refresh", response_model=Token, dependencies=[Depends(RateLimiter(30, 60, "ip"))])
 async def refresh_tokens(
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    data: Optional[RefreshTokenIn] = None,
 ):
-    refresh_token = request.cookies.get("sara_refresh_token")
+    # Accept the refresh token from the JSON body (primary) or the HTTP-only cookie (fallback).
+    refresh_token = (data.refresh_token if data and data.refresh_token else None) or request.cookies.get("sara_refresh_token")
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing refresh token cookie"
+            detail="Missing refresh token"
         )
         
     try:
@@ -196,7 +273,9 @@ async def refresh_tokens(
     if session.token_hash != _hash_token(refresh_token):
         raise HTTPException(status_code=401, detail="Session verification failed")
 
-    res_user = await db.execute(select(User).where(User.id == user_id))
+    res_user = await db.execute(
+        select(User).where(User.id == user_id).options(selectinload(User.department))
+    )
     user = res_user.scalars().first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Inactive user")
@@ -232,17 +311,19 @@ async def refresh_tokens(
     _set_refresh_cookie(response, new_refresh_token)
     return {
         "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
         "token_type": "bearer",
-        "user": user
+        "user": _serialize_user(user)
     }
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    data: Optional[RefreshTokenIn] = None,
 ):
-    refresh_token = request.cookies.get("sara_refresh_token")
+    refresh_token = (data.refresh_token if data and data.refresh_token else None) or request.cookies.get("sara_refresh_token")
     if refresh_token:
         try:
             payload = decode_token(refresh_token)
@@ -268,5 +349,13 @@ async def logout(
     return {"message": "Successfully logged out"}
 
 @router.get("/me", response_model=UserProfile)
-async def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+async def get_me(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(User).where(User.id == current_user.id).options(selectinload(User.department))
+    )
+    user = result.scalars().first()
+    return _serialize_user(user)

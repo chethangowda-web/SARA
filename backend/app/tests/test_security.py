@@ -242,10 +242,12 @@ async def test_ai_failure_fallback(db_session, test_citizen):
             from app.ai.pipeline import process_grievance_ai_pipeline
             g = await _create_dummy_grievance(db_session, test_citizen)
             
-            # The AI pipeline should recover using fallback methods and transition the grievance to CLASSIFIED state
+            # The AI pipeline should recover using fallback methods and transition the grievance to CLASSIFIED state.
+            # The deterministic fallback classifier reports low confidence (<0.75), so the routing layer
+            # correctly flags it for manual review under category OTHER (see auto_route_and_assign).
             processed_g = await process_grievance_ai_pipeline(db_session, g.id)
             assert processed_g.current_state == "CLASSIFIED"
-            assert processed_g.category == "General"
+            assert processed_g.category == "OTHER"
 
 # 19. AI malformed response fallback works
 async def test_ai_malformed_response_fallback(db_session, test_citizen):

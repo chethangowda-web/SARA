@@ -16,7 +16,19 @@ import {
   File,
   Sparkles,
   ShieldAlert,
+  Mic,
 } from 'lucide-react';
+
+const SUPPORTED_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'kn', label: 'ಕನ್ನಡ (Kannada)' },
+  { code: 'hi', label: 'हिन्दी (Hindi)' },
+  { code: 'te', label: 'తెలుగు (Telugu)' },
+  { code: 'ta', label: 'தமிழ் (Tamil)' },
+  { code: 'ml', label: 'മലയാളം (Malayalam)' },
+  { code: 'mr', label: 'ಮರಾಠಿ (Marathi)' },
+  { code: 'bn', label: 'বাংলা (Bengali)' },
+];
 
 export interface SubmitGrievanceWizardProps {
   onClose?: () => void;
@@ -33,6 +45,12 @@ export const SubmitGrievanceWizard: React.FC<SubmitGrievanceWizardProps> = ({ on
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Voice Recording state
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const [isListeningTitle, setIsListeningTitle] = useState(false);
+  const [isListeningDesc, setIsListeningDesc] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
 
   // AI Pipeline Preview state
   const [aiPreview, setAiPreview] = useState<{
@@ -62,6 +80,67 @@ export const SubmitGrievanceWizard: React.FC<SubmitGrievanceWizardProps> = ({ on
 
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const startListening = (target: 'title' | 'description') => {
+    setSpeechError(null);
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechError("🎙️ Voice input isn't available in this browser. You can type your complaint instead.");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = selectedLanguage === 'kn' ? 'kn-IN' : 
+                         selectedLanguage === 'hi' ? 'hi-IN' : 
+                         selectedLanguage === 'te' ? 'te-IN' : 
+                         selectedLanguage === 'ta' ? 'ta-IN' : 
+                         selectedLanguage === 'ml' ? 'ml-IN' : 
+                         selectedLanguage === 'mr' ? 'mr-IN' : 
+                         selectedLanguage === 'bn' ? 'bn-IN' : 'en-US';
+
+      if (target === 'title') {
+        setIsListeningTitle(true);
+        setIsListeningDesc(false);
+      } else {
+        setIsListeningDesc(true);
+        setIsListeningTitle(false);
+      }
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (target === 'title') {
+          setTitle((prev) => (prev ? prev + ' ' + transcript : transcript));
+        } else {
+          setDescription((prev) => (prev ? prev + ' ' + transcript : transcript));
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error === 'not-allowed') {
+          setSpeechError("Microphone access blocked. Please enable permissions in your browser settings.");
+        } else {
+          setSpeechError(`Speech recognition failed: ${event.error}`);
+        }
+        setIsListeningTitle(false);
+        setIsListeningDesc(false);
+      };
+
+      recognition.onend = () => {
+        setIsListeningTitle(false);
+        setIsListeningDesc(false);
+      };
+
+      recognition.start();
+    } catch (e: any) {
+      setSpeechError(`Speech initialization failed: ${e.message}`);
+      setIsListeningTitle(false);
+      setIsListeningDesc(false);
+    }
   };
 
   // Step 3: Trigger submission & backend AI classification
@@ -151,36 +230,81 @@ export const SubmitGrievanceWizard: React.FC<SubmitGrievanceWizardProps> = ({ on
       {/* STEP 1: Describe Issue */}
       {step === 1 && (
         <div className="space-y-4 animate-fadeIn">
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-              Grievance Title *
-            </label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Water pipeline leak near 4th Main Road"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
-            />
+          {speechError && (
+            <div className="p-4 bg-amber-950/40 border border-amber-800/60 text-amber-300 text-xs font-semibold rounded-xl">
+              {speechError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Preferred Language / ಭಾಷೆ / भाषा *
+              </label>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+              >
+                <option value="Public Infrastructure">Public Infrastructure & Roads</option>
+                <option value="Water & Sanitation">Water Supply & Sanitation</option>
+                <option value="Electricity & Lighting">Electricity & Street Lighting</option>
+                <option value="Public Health">Public Health & Waste Management</option>
+                <option value="Revenue & Taxation">Revenue & Administrative Services</option>
+                <option value="Other Civic Services">Other Civic Services</option>
+              </select>
+            </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-              Category
+              Grievance Title *
             </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
-            >
-              <option value="Public Infrastructure">Public Infrastructure & Roads</option>
-              <option value="Water & Sanitation">Water Supply & Sanitation</option>
-              <option value="Electricity & Lighting">Electricity & Street Lighting</option>
-              <option value="Public Health">Public Health & Waste Management</option>
-              <option value="Revenue & Taxation">Revenue & Administrative Services</option>
-              <option value="Other Civic Services">Other Civic Services</option>
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Water pipeline leak near 4th Main Road / ನೀರಿನ ಪೈಪ್ ಒಡೆದಿದೆ"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-12 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => startListening('title')}
+                className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition ${
+                  isListeningTitle
+                    ? 'bg-red-600 text-white animate-pulse'
+                    : 'text-slate-400 hover:text-slate-200 bg-slate-900/60 hover:bg-slate-800'
+                }`}
+                title="Speak Title"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            </div>
+            {isListeningTitle && (
+              <div className="flex items-center gap-1.5 text-[11px] text-red-400 font-semibold mt-1">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                <span>Listening... Speak now in your selected language.</span>
+              </div>
+            )}
           </div>
 
           <div>
@@ -201,17 +325,37 @@ export const SubmitGrievanceWizard: React.FC<SubmitGrievanceWizardProps> = ({ on
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
               Detailed Description *
             </label>
-            <textarea
-              required
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Provide specific details about the issue, duration, impact on citizens, and previous attempts to resolve..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
-            />
+            <div className="relative">
+              <textarea
+                required
+                rows={4}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Provide specific details about the issue, duration, impact on citizens..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-12 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => startListening('description')}
+                className={`absolute right-3 bottom-3 p-2 rounded-lg transition ${
+                  isListeningDesc
+                    ? 'bg-red-600 text-white animate-pulse'
+                    : 'text-slate-400 hover:text-slate-200 bg-slate-900/60 hover:bg-slate-800'
+                }`}
+                title="Speak Description"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            </div>
+            {isListeningDesc && (
+              <div className="flex items-center gap-1.5 text-[11px] text-red-400 font-semibold mt-1">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                <span>Listening... Describe the issue in detail.</span>
+              </div>
+            )}
           </div>
 
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-end pt-4 border-t border-slate-800/60">
             <Button
               variant="primary"
               disabled={!title.trim() || !description.trim() || !location.trim()}

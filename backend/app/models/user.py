@@ -31,6 +31,9 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_roles_enum"), nullable=False
     )
+    preferred_language: Mapped[str] = mapped_column(
+        String(10), default="en", server_default="en", nullable=False
+    )
     department_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("departments.id", ondelete="SET NULL"), nullable=True
     )

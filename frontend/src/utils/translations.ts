@@ -1,0 +1,598 @@
+export type SupportedLanguage = 'en' | 'kn' | 'hi' | 'te' | 'ta' | 'ml' | 'mr' | 'bn';
+
+export interface LanguageOption {
+  code: SupportedLanguage;
+  name: string;
+  nativeName: string;
+}
+
+export const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  { code: 'en', name: 'English', nativeName: 'English' },
+  { code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
+  { code: 'te', name: 'Telugu', nativeName: 'తెలుగు' },
+  { code: 'ta', name: 'Tamil', nativeName: 'தமிழ்' },
+  { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം' },
+  { code: 'mr', name: 'Marathi', nativeName: 'मराठी' },
+  { code: 'bn', name: 'Bengali', nativeName: 'বাংলা' },
+];
+
+export const AUTH_TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
+  en: {
+    portalBadge: 'Official Government Portal',
+    appTitle: 'SARA',
+    appSubtitle: 'Smart Accountability & Resource Allocation Assistant',
+    chooseAccess: 'Choose how you want to access SARA',
+    welcomeHeading: 'Welcome to SARA',
+    
+    // Roles
+    citizenRole: 'Citizen',
+    citizenDesc: 'Report and track civic grievances',
+    citizenDetail: 'Submit complaints, track SLA timers, and rate resolution quality.',
+    
+    officerRole: 'Officer',
+    officerDesc: 'Manage and resolve assigned grievances',
+    officerDetail: 'Acknowledge cases, upload resolution evidence, and manage field tasks.',
+    
+    supervisorRole: 'Supervisor',
+    supervisorDesc: 'Review resolutions and monitor departmental performance',
+    supervisorDetail: 'Monitor SLA breaches, review abort requests, and oversee workloads.',
+    
+    adminRole: 'Admin',
+    adminDesc: 'Manage departments, users, resources and system operations',
+    adminDetail: 'Configure departments, manage RBAC users, and review system anomalies.',
+    
+    // Login form
+    signInTitle: 'Login',
+    citizenSignInSub: 'Sign in to access your SARA citizen dashboard.',
+    officerSignInSub: 'Sign in to manage and resolve assigned grievances.',
+    supervisorSignInSub: 'Sign in to review resolutions and monitor departmental performance.',
+    adminSignInSub: 'Sign in to manage departments, users, resources and system operations.',
+    
+    backToRoles: 'Back to Role Selection',
+    emailLabel: 'Email Address / Username',
+    emailPlaceholder: 'e.g. citizen@sara.gov',
+    passwordLabel: 'Password',
+    passwordPlaceholder: '••••••••',
+    rememberMe: 'Remember Me',
+    forgotPassword: 'Forgot Password?',
+    signInBtn: 'Sign In',
+    authenticating: 'Authenticating Session...',
+    noAccount: "Don't have an account?",
+    createCitizenAccount: 'Create Citizen Account',
+    
+    // Signup
+    signupTitle: 'Create Citizen Account',
+    signupSubtitle: 'Register your Smart Grievance Resolution Profile',
+    signupNote: 'Public registration creates Citizen accounts only. Officer, Supervisor, and Admin access is managed by administrators.',
+    fullNameLabel: 'Full Name',
+    fullNamePlaceholder: 'e.g. Jane Doe',
+    phoneLabel: 'Phone Number',
+    phonePlaceholder: '+91 98765 43210',
+    preferredLangLabel: 'Preferred Language',
+    confirmPasswordLabel: 'Confirm Password',
+    confirmPasswordPlaceholder: 'Re-enter password',
+    signUpBtn: 'Sign Up',
+    creatingProfile: 'Creating Profile...',
+    alreadyHaveAccount: 'Already have an account?',
+    
+    // Errors & Messages
+    invalidCredentials: 'Invalid email or password.',
+    roleMismatchError: 'Incorrect login type. These credentials belong to a {actualRole} account. Please select {actualRole} Login.',
+    inactiveAccount: 'Your account is currently inactive. Please contact the administrator.',
+    sessionExpired: 'Your session has expired. Please sign in again.',
+    signupSuccess: 'Account created successfully. Please sign in as Citizen.',
+    allFieldsRequired: 'All required fields must be filled.',
+    passwordLengthError: 'Password must be at least 8 characters long.',
+    passwordsDoNotMatch: 'Passwords do not match.',
+    
+    // Demo Menu
+    quickDemoMenu: 'Quick Demo Credentials & Role Switcher',
+    showDemo: 'Show Roles',
+    hideDemo: 'Hide Roles',
+    clickToAutofill: 'Click any role to autofill & authenticate:',
+  },
+  
+  kn: {
+    portalBadge: 'ಅಧಿಕೃತ ಸರ್ಕಾರಿ ಪೋರ್ಟಲ್',
+    appTitle: 'ಸಾರಾ (SARA)',
+    appSubtitle: 'ಸ್ಮಾರ್ಟ್ ಹೊಣೆಗಾರಿಕೆ ಮತ್ತು ಸಂಪನ್ಮೂಲ ಹಂಚಿಕೆ ಸಹಾಯಕ',
+    chooseAccess: 'ನೀವು ಸಾರಾವನ್ನು ಹೇಗೆ ಪ್ರವೇಶಿಸಲು ಬಯಸುತ್ತೀರಿ ಎಂಬುದನ್ನು ಆಯ್ಕೆಮಾಡಿ',
+    welcomeHeading: 'ಸಾರಾಗೆ ಸುಸ್ವಾಗತ',
+    
+    citizenRole: 'ನಾಗರಿಕ (Citizen)',
+    citizenDesc: 'ಸಾರ್ವಜನಿಕ ಕುಂದುಕೊರತೆಗಳನ್ನು ವರದಿ ಮಾಡಿ ಮತ್ತು ಟ್ರ್ಯಾಕ್ ಮಾಡಿ',
+    citizenDetail: 'ದೂರುಗಳನ್ನು ಸಲ್ಲಿಸಿ, ಎಸ್‌ಎಲ್‌ಎ ಸಮಯವನ್ನು ಪರಿಶೀಲಿಸಿ.',
+    
+    officerRole: 'ಅಧಿಕಾರಿ (Officer)',
+    officerDesc: 'ನಿಯೋಜಿಸಲಾದ ಕುಂದುಕೊರತೆಗಳನ್ನು ನಿರ್ವಹಿಸಿ ಮತ್ತು ಪರಿಹರಿಸಿ',
+    officerDetail: 'ಪ್ರಕರಣಗಳನ್ನು ಅಂಗೀಕರಿಸಿ, ಪರಿಹಾರ ಪುರಾವೆಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ.',
+    
+    supervisorRole: 'ಮೇಲ್ವಿಚಾರಕ (Supervisor)',
+    supervisorDesc: 'ಪರಿಹಾರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತು ಇಲಾಖೆಯ ಕಾರ್ಯಕ್ಷಮತೆಯನ್ನು ಮೇಲ್ವಿಚಾರಣೆ ಮಾಡಿ',
+    supervisorDetail: 'ಎಸ್‌ಎಲ್‌ಎ ಉಲ್ಲಂಘನೆಗಳನ್ನು ಗಮನಿಸಿ, ಕಾರ್ಯಭಾರವನ್ನು ಮೇಲ್ವಿಚಾರಣೆ ಮಾಡಿ.',
+    
+    adminRole: 'ಆಡಳಿತಾಧಿಕಾರಿ (Admin)',
+    adminDesc: 'ಇಲಾಖೆಗಳು, ಬಳಕೆದಾರರು ಮತ್ತು ಸಿಸ್ಟಮ್ ಕಾರ್ಯಾಚರಣೆಗಳನ್ನು ನಿರ್ವಹಿಸಿ',
+    adminDetail: 'ವ್ಯವಸ್ಥೆಯನ್ನು ಸಂರಚಿಸಿ, ಬಳಕೆದಾರರ ಹಕ್ಕುಗಳನ್ನು ನಿರ್ವಹಿಸಿ.',
+    
+    signInTitle: 'ಲಾಗಿನ್',
+    citizenSignInSub: 'ನಿಮ್ಮ ಸಾರಾ ನಾಗರಿಕ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಪ್ರವೇಶಿಸಲು ಲಾಗ್ ಇನ್ ಮಾಡಿ.',
+    officerSignInSub: 'ನಿಯೋಜಿತ ಕುಂದುಕೊರತೆಗಳನ್ನು ನಿರ್ವಹಿಸಲು ಲಾಗ್ ಇನ್ ಮಾಡಿ.',
+    supervisorSignInSub: 'ಇಲಾಖೆಯ ಕಾರ್ಯಕ್ಷಮತೆಯನ್ನು ಮೇಲ್ವಿಚಾರಣೆ ಮಾಡಲು ಲಾಗ್ ಇನ್ ಮಾಡಿ.',
+    adminSignInSub: 'ಸಿಸ್ಟಮ್ ಕಾರ್ಯಾಚರಣೆಗಳನ್ನು ನಿರ್ವಹಿಸಲು ಲಾಗ್ ಇನ್ ಮಾಡಿ.',
+    
+    backToRoles: 'ಪಾತ್ರದ ಆಯ್ಕೆಗೆ ಹಿಂತಿರುಗಿ',
+    emailLabel: 'ಇಮೇಲ್ ವಿಳಾಸ / ಬಳಕೆದಾರ ಹೆಸರು',
+    emailPlaceholder: 'ಉದಾ: citizen@sara.gov',
+    passwordLabel: 'ಪಾಸ್‌ವರ್ಡ್',
+    passwordPlaceholder: '••••••••',
+    rememberMe: 'ನನ್ನನ್ನು ನೆನಪಿಡಿ',
+    forgotPassword: 'ಪಾಸ್‌ವರ್ಡ್ ಮರೆತಿದ್ದೀರಾ?',
+    signInBtn: 'ಸೈನ್ ಇನ್',
+    authenticating: 'ಪ್ರಮಾಣೀಕರಿಸಲಾಗುತ್ತಿದೆ...',
+    noAccount: 'ಖಾತೆ ಇಲ್ಲವೇ?',
+    createCitizenAccount: 'ನಾಗರಿಕ ಖಾತೆಯನ್ನು ರಚಿಸಿ',
+    
+    signupTitle: 'ನಾಗರಿಕ ಖಾತೆಯನ್ನು ರಚಿಸಿ',
+    signupSubtitle: 'ನಿಮ್ಮ ಸ್ಮಾರ್ಟ್ ದೂರು ಪರಿಹಾರ ಪ್ರೊಫೈಲ್ ನೋಂದಾಯಿಸಿ',
+    signupNote: 'ಸಾರ್ವಜನಿಕ ನೋಂದಣಿಯು ನಾಗರಿಕ ಖಾತೆಗಳನ್ನು ಮಾತ್ರ ರಚಿಸುತ್ತದೆ.',
+    fullNameLabel: 'ಪೂರ್ಣ ಹೆಸರು',
+    fullNamePlaceholder: 'ಉದಾ: ಜೇನ್ ಡೋ',
+    phoneLabel: 'ದೂರವಾಣಿ ಸಂಖ್ಯೆ',
+    phonePlaceholder: '+91 98765 43210',
+    preferredLangLabel: 'ಆದ್ಯತೆಯ ಭಾಷೆ',
+    confirmPasswordLabel: 'ಪಾಸ್‌ವರ್ಡ್ ದೃಢೀಕರಿಸಿ',
+    confirmPasswordPlaceholder: 'ಪಾಸ್‌ವರ್ಡ್ ಮರು ನಮೂದಿಸಿ',
+    signUpBtn: 'ಸೈನ್ ಅಪ್',
+    creatingProfile: 'ಪ್ರೊಫೈಲ್ ರಚಿಸಲಾಗುತ್ತಿದೆ...',
+    alreadyHaveAccount: 'ಈಗಾಗಲೇ ಖಾತೆ ಇದೆಯೇ?',
+    
+    invalidCredentials: 'ಅಮಾನ್ಯ ಇಮೇಲ್ ಅಥವಾ ಪಾಸ್‌ವರ್ಡ್.',
+    roleMismatchError: 'ತಪ್ಪಾದ ಲಾಗಿನ್ ಪ್ರಕಾರ. ಈ ರುಜುವಾತುಗಳು {actualRole} ಖಾತೆಗೆ ಸೇರಿವೆ. ದಯವಿಟ್ಟು {actualRole} ಲಾಗಿನ್ ಆಯ್ಕೆಮಾಡಿ.',
+    inactiveAccount: 'ನಿಮ್ಮ ಖಾತೆ ಪ್ರಸ್ತುತ ನಿಷ್ಕ್ರಿಯವಾಗಿದೆ.',
+    sessionExpired: 'ನಿಮ್ಮ ಸೇಶನ್ ಅವಧಿ ಮುಗಿದಿದೆ.',
+    signupSuccess: 'ಖಾತೆಯನ್ನು ಯಶಸ್ವಿಯಾಗಿ ರಚಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ನಾಗರಿಕರಾಗಿ ಸೈನ್ ಇನ್ ಮಾಡಿ.',
+    allFieldsRequired: 'ಎಲ್ಲಾ ಅಗತ್ಯ ಕ್ಷೇತ್ರಗಳನ್ನು ಭರ್ತಿ ಮಾಡಬೇಕು.',
+    passwordLengthError: 'ಪಾಸ್‌ವರ್ಡ್ ಕನಿಷ್ಠ 8 ಅಕ್ಷರಗಳಾಗಿರಬೇಕು.',
+    passwordsDoNotMatch: 'ಪಾಸ್‌ವರ್ಡ್‌ಗಳು ತಾಳೆಯಾಗುತ್ತಿಲ್ಲ.',
+    
+    quickDemoMenu: 'ಡೆಮೊ ರುಜುವಾತುಗಳು ಮತ್ತು ಪಾತ್ರ ಸ್ವಿಚರ್',
+    showDemo: 'ಪಾತ್ರಗಳನ್ನು ತೋರಿಸಿ',
+    hideDemo: 'ಪಾತ್ರಗಳನ್ನು ಮರೆಮಾಡಿ',
+    clickToAutofill: 'ಸ್ವಯಂ ಭರ್ತಿ ಮಾಡಲು ಮತ್ತು ಪ್ರಮಾಣೀಕರಿಸಲು ಕ್ಲಿಕ್ ಮಾಡಿ:',
+  },
+
+  hi: {
+    portalBadge: 'आधिकारिक सरकारी पोर्टल',
+    appTitle: 'सारा (SARA)',
+    appSubtitle: 'स्मार्ट जवाबदेही और संसाधन आवंटन सहायक',
+    chooseAccess: 'चुनें कि आप SARA का उपयोग कैसे करना चाहते हैं',
+    welcomeHeading: 'SARA में आपका स्वागत है',
+    
+    citizenRole: 'नागरिक (Citizen)',
+    citizenDesc: 'नागरिक शिकायतों को दर्ज करें और ट्रैक करें',
+    citizenDetail: 'शिकायतें दर्ज करें, SLA टाइमर ट्रैक करें, और समाधान को रेट करें।',
+    
+    officerRole: 'अधिकारी (Officer)',
+    officerDesc: 'आवंटित शिकायतों का प्रबंधन और समाधान करें',
+    officerDetail: 'मामलों को स्वीकार करें, समाधान प्रमाण अपलोड करें, और कार्य संभालें।',
+    
+    supervisorRole: 'पर्यवेक्षक (Supervisor)',
+    supervisorDesc: 'समाधानों की समीक्षा करें और विभागीय प्रदर्शन की निगरानी करें',
+    supervisorDetail: 'SLA उल्लंघन की निगरानी करें और कार्यभार का निरीक्षण करें।',
+    
+    adminRole: 'प्रशासक (Admin)',
+    adminDesc: 'विभागों, उपयोगकर्ताओं और सिस्टम संचालन का प्रबंधन करें',
+    adminDetail: 'विभागों को कॉन्फ़िगर करें, RBAC उपयोगकर्ताओं का प्रबंधन करें।',
+    
+    signInTitle: 'लॉग इन',
+    citizenSignInSub: 'अपने नागरिक डैशबोर्ड तक पहुंचने के लिए लॉग इन करें।',
+    officerSignInSub: 'आवंटित शिकायतों के प्रबंधन के लिए लॉग इन करें।',
+    supervisorSignInSub: 'विभागीय प्रदर्शन की निगरानी के लिए लॉग इन करें।',
+    adminSignInSub: 'सिस्टम संचालन का प्रबंधन करने के लिए लॉग इन करें।',
+    
+    backToRoles: 'भूमिका चयन पर वापस जाएं',
+    emailLabel: 'ईमेल पता / उपयोगकर्ता नाम',
+    emailPlaceholder: 'जैसे citizen@sara.gov',
+    passwordLabel: 'पासवर्ड',
+    passwordPlaceholder: '••••••••',
+    rememberMe: 'मुझे याद रखें',
+    forgotPassword: 'पासवर्ड भूल गए?',
+    signInBtn: 'साइन इन करें',
+    authenticating: 'प्रमाणीकृत किया जा रहा है...',
+    noAccount: 'खाता नहीं है?',
+    createCitizenAccount: 'नागरिक खाता बनाएं',
+    
+    signupTitle: 'नागरिक खाता बनाएं',
+    signupSubtitle: 'अपनी स्मार्ट शिकायत निवारण प्रोफाइल पंजीकृत करें',
+    signupNote: 'सार्वजनिक पंजीकरण केवल नागरिक खाते बनाता है।',
+    fullNameLabel: 'पूरा नाम',
+    fullNamePlaceholder: 'जैसे जॉन डो',
+    phoneLabel: 'फोन नंबर',
+    phonePlaceholder: '+91 98765 43210',
+    preferredLangLabel: 'पसंदीदा भाषा',
+    confirmPasswordLabel: 'पासवर्ड की पुष्टि करें',
+    confirmPasswordPlaceholder: 'पासवर्ड पुनः दर्ज करें',
+    signUpBtn: 'साइन अप करें',
+    creatingProfile: 'प्रोफाइल बनाई जा रही है...',
+    alreadyHaveAccount: 'क्या आपके पास पहले से एक खाता मौजूद है?',
+    
+    invalidCredentials: 'अमान्य ईमेल या पासवर्ड।',
+    roleMismatchError: 'गलत लॉगिन प्रकार। ये क्रेडेंशियल {actualRole} खाते से संबंधित हैं। कृपया {actualRole} लॉगिन चुनें।',
+    inactiveAccount: 'आपका खाता वर्तमान में निष्क्रिय है।',
+    sessionExpired: 'आपका सत्र समाप्त हो गया है।',
+    signupSuccess: 'खाता सफलतापूर्वक बनाया गया। कृपया नागरिक के रूप में साइन इन करें।',
+    allFieldsRequired: 'सभी आवश्यक फ़ील्ड भरे जाने चाहिए।',
+    passwordLengthError: 'पासवर्ड कम से कम 8 वर्णों का होना चाहिए।',
+    passwordsDoNotMatch: 'पासवर्ड मेल नहीं खाते।',
+    
+    quickDemoMenu: 'डेमो क्रेडेंशियल और भूमिका चयनकर्ता',
+    showDemo: 'भूमिकाएं दिखाएं',
+    hideDemo: 'भूमिकाएं छिपाएं',
+    clickToAutofill: 'ऑटोफिल और प्रामाणिक करने के लिए क्लिक करें:',
+  },
+
+  te: {
+    portalBadge: 'అధికారిక ప్రభుత్వ పోర్టల్',
+    appTitle: 'సారా (SARA)',
+    appSubtitle: 'స్మార్ట్ బాధ్యత మరియు వనరుల కేటాయింపు సహాయకుడు',
+    chooseAccess: 'మీరు SARA ను ఎలా యాక్సెస్ చేయాలనుకుంటున్నారో ఎంచుకోండి',
+    welcomeHeading: 'SARA కి స్వాగతం',
+    
+    citizenRole: 'పౌరుడు (Citizen)',
+    citizenDesc: 'పౌర ఫిర్యాదులను నమోదు చేయండి మరియు ట్రాక్ చేయండి',
+    citizenDetail: 'ఫిర్యాదులను సమర్పించండి, SLA సమయాన్ని పరిశీలించండి.',
+    
+    officerRole: 'అధికారి (Officer)',
+    officerDesc: 'కేటాయించిన ఫిర్యాదులను నిర్వహించండి మరియు పరిష్కరించండి',
+    officerDetail: 'కేసులను ఆమోదించండి, పరిష్కార ఆధారాలను అప్‌లోడ్ చేయండి.',
+    
+    supervisorRole: 'సూపర్‌వైజర్ (Supervisor)',
+    supervisorDesc: 'పరిష్కారాలను సమీక్షించండి మరియు శాఖ పనితీరును పర్యవేక్షించండి',
+    supervisorDetail: 'SLA ఉల్లంఘనలను గమనించండి, పనిభారాన్ని పర్యవేక్షించండి.',
+    
+    adminRole: 'అడ్మిన్ (Admin)',
+    adminDesc: 'శాఖలు, వినియోగదారులు మరియు సిస్టమ్ కార్యకలాపాలను నిర్వహించండి',
+    adminDetail: 'అంశాలను కాన్ఫిగర్ చేయండి, వినియోగదారు హక్కులను నిర్వహించండి.',
+    
+    signInTitle: 'లాగిన్',
+    citizenSignInSub: 'మీ పౌర డాష్‌బోర్డ్‌ను యాక్సెస్ చేయడానికి లాగిన్ చేయండి.',
+    officerSignInSub: 'కేటాయించిన ఫిర్యాదులను నిర్వహించడానికి లాగిన్ చేయండి.',
+    supervisorSignInSub: 'శాఖ పనితీరును పర్యవేక్షించడానికి లాగిన్ చేయండి.',
+    adminSignInSub: 'సిస్టమ్ కార్యకలాపాలను నిర్వహించడానికి లాగిన్ చేయండి.',
+    
+    backToRoles: 'పాత్ర ఎంపికకు తిరిగి వెళ్లండి',
+    emailLabel: 'ఈమెయిల్ చిరునామా / వినియోగదారు పేరు',
+    emailPlaceholder: 'ఉదా: citizen@sara.gov',
+    passwordLabel: 'పాస్‌వర్డ్',
+    passwordPlaceholder: '••••••••',
+    rememberMe: 'నన్ను గుర్తుంచుకో',
+    forgotPassword: 'పాస్‌వర్డ్ మర్చిపోయారా?',
+    signInBtn: 'సైన్ ఇన్',
+    authenticating: 'ధృవీకరిస్తోంది...',
+    noAccount: 'ఖాతా లేదా?',
+    createCitizenAccount: 'పౌర ఖాతాను సృష్టించండి',
+    
+    signupTitle: 'పౌర ఖాతాను సృష్టించండి',
+    signupSubtitle: 'మీ స్మార్ట్ ఫిర్యాదుల పరిష్కార ప్రొఫైల్‌ను నమోదు చేయండి',
+    signupNote: 'పబ్లిక్ రిజిస్ట్రేషన్ పౌర ఖాతాలను మాత్రమే సృష్టిస్తుంది.',
+    fullNameLabel: 'పూర్తి పేరు',
+    fullNamePlaceholder: 'ఉదా: జాన్ డో',
+    phoneLabel: 'ఫోన్ నంబర్',
+    phonePlaceholder: '+91 98765 43210',
+    preferredLangLabel: 'ఇష్టపడే భాష',
+    confirmPasswordLabel: 'పాస్‌వర్డ్‌ను నిర్ధారించండి',
+    confirmPasswordPlaceholder: 'పాస్‌వర్డ్‌ను మళ్లీ నమోదు చేయండి',
+    signUpBtn: 'సైన్ అప్',
+    creatingProfile: 'ప్రొఫైల్ సృష్టిస్తోంది...',
+    alreadyHaveAccount: 'ఇప్పటికే ఖాతా ఉందా?',
+    
+    invalidCredentials: 'చెల్లని ఈమెయిల్ లేదా పాస్‌వర్డ్.',
+    roleMismatchError: 'తప్పైన లాగిన్ రకం. ఈ వివరాలు {actualRole} ఖాతాకు సంబంధించినవి. దయచేసి {actualRole} లాగిన్‌ను ఎంచుకోండి.',
+    inactiveAccount: 'మీ ఖాతా ప్రస్తుతం నిష్క్రియంగా ఉంది.',
+    sessionExpired: 'మీ సెషన్ గడువు ముగిసింది.',
+    signupSuccess: 'ఖాతా విజయవంతంగా సృష్టించబడింది. దయచేసి పౌరుడిగా సైన్ ఇన్ చేయండి.',
+    allFieldsRequired: 'అన్ని అవసరమైన ఫీల్డ్‌లను నింపాలి.',
+    passwordLengthError: 'పాస్‌వర్డ్ కనీసం 8 అక్షరాలు ఉండాలి.',
+    passwordsDoNotMatch: 'పాస్‌వర్డ్‌లు సరిపోలడం లేదు.',
+    
+    quickDemoMenu: 'డెమో ఆధారాలు మరియు పాత్ర స్విచర్',
+    showDemo: 'పాత్రలను చూపించు',
+    hideDemo: 'పాత్రలను దాచు',
+    clickToAutofill: 'ఆటోఫిల్ చేయడానికి మరియు సైన్ ఇన్ చేయడానికి క్లిక్ చేయండి:',
+  },
+
+  ta: {
+    portalBadge: 'அதிகாரப்பூர்வ அரசு இணையதளம்',
+    appTitle: 'சாரா (SARA)',
+    appSubtitle: 'ஸ்மார்ட் பொறுப்புக்கூறல் மற்றும் வள ஒதுக்கீடு உதவியாளர்',
+    chooseAccess: 'SARA-வை எவ்வாறு அணுக விரும்புகிறீர்கள் என்பதைத் தேர்ந்தெடுக்கவும்',
+    welcomeHeading: 'SARA-விற்கு நல்வரவு',
+    
+    citizenRole: 'குடிமகன் (Citizen)',
+    citizenDesc: 'குறைபாடுகளைப் பதிவு செய்து கண்காணிக்கவும்',
+    citizenDetail: 'புகார்களைச் சமர்ப்பிக்கவும், SLA நேரத்தைக் கண்காணிக்கவும்.',
+    
+    officerRole: 'அதிகாரி (Officer)',
+    officerDesc: 'ஒதுக்கப்பட்ட குறைகளை நிர்வகித்து தீர்க்கவும்',
+    officerDetail: 'வழக்குகளை ஏற்றுக்கொண்டு தீர்வுச் சான்றுகளைப் பதிவேற்றவும்.',
+    
+    supervisorRole: 'மேற்பார்வையாளர் (Supervisor)',
+    supervisorDesc: 'தீர்வுகளை மதிப்பாய்வு செய்து துறைச் செயல்பாட்டைக் கண்காணிக்கவும்',
+    supervisorDetail: 'SLA மீறல்களைக் கண்காணித்து பணிச்சுமையை மேற்பார்வையிடவும்.',
+    
+    adminRole: 'நிர்வாகி (Admin)',
+    adminDesc: 'துறைகள், பயனர்கள் மற்றும் கணினி செயல்பாடுகளை நிர்வகிக்கவும்',
+    adminDetail: 'கணினியை அமைத்து பயனர்களின் உரிமைகளை நிர்வகிக்கவும்.',
+    
+    signInTitle: 'உள்நுழைவு',
+    citizenSignInSub: 'உங்கள் குடிமகன் டாஷ்போர்டை அணுக உள்நுழையவும்.',
+    officerSignInSub: 'ஒதுக்கப்பட்ட குறைகளை நிர்வகிக்க உள்நுழையவும்.',
+    supervisorSignInSub: 'துறைச் செயல்பாட்டைக் கண்காணிக்க உள்நுழையவும்.',
+    adminSignInSub: 'கணினி செயல்பாடுகளை நிர்வகிக்க உள்நுழையவும்.',
+    
+    backToRoles: 'பங்கு தேர்வுக்குத் திரும்புக',
+    emailLabel: 'மின்னஞ்சல் முகவரி / பயனர் பெயர்',
+    emailPlaceholder: 'எ.கா: citizen@sara.gov',
+    passwordLabel: 'கடவுச்சொல்',
+    passwordPlaceholder: '••••••••',
+    rememberMe: 'என்னை நினைவில் கொள்க',
+    forgotPassword: 'கடவுச்சொல்லை மறந்துவிட்டீர்களா?',
+    signInBtn: 'உள்நுழைக',
+    authenticating: 'சரிபார்க்கிறது...',
+    noAccount: 'கணக்கு இல்லையா?',
+    createCitizenAccount: 'குடிமகன் கணக்கை உருவாக்கவும்',
+    
+    signupTitle: 'குடிமகன் கணக்கை உருவாக்கவும்',
+    signupSubtitle: 'உங்கள் குறை தீர்க்கும் சுயவிவரத்தைப் பதிவுசெய்க',
+    signupNote: 'பொதுப் பதிவு குடிமகன் கணக்குகளை மட்டுமே உருவாக்குகிறது.',
+    fullNameLabel: 'முழு பெயர்',
+    fullNamePlaceholder: 'எ.கா: ஜான் டDoe',
+    phoneLabel: 'தொலைபேசி எண்',
+    phonePlaceholder: '+91 98765 43210',
+    preferredLangLabel: 'விருப்ப மொழி',
+    confirmPasswordLabel: 'கடவுச்சொல்லை உறுதிப்படுத்தவும்',
+    confirmPasswordPlaceholder: 'கடவுச்சொல்லை மீண்டும் உள்ளிடவும்',
+    signUpBtn: 'பதிவுசெய்க',
+    creatingProfile: 'சுயவிவரம் உருவாக்கப்படுகிறது...',
+    alreadyHaveAccount: 'ஏற்கனவே கணக்கு உள்ளதா?',
+    
+    invalidCredentials: 'தவறான மின்னஞ்சல் அல்லது கடவுச்சொல்.',
+    roleMismatchError: 'தவறான உள்நுழைவு வகை. இந்த நற்சான்றுகள் {actualRole} கணக்கிற்கு உரியவை. தயவுசெய்து {actualRole} உள்நுழைவைத் தேர்ந்தெடுக்கவும்.',
+    inactiveAccount: 'உங்கள் கணக்கு தற்போது செயலற்ற நிலையில் உள்ளது.',
+    sessionExpired: 'உங்கள் அமர்வு காலாவதியாகிவிட்டது.',
+    signupSuccess: 'கணக்கு வெற்றிகரமாக உருவாக்கப்பட்டது. தயவுசெய்து குடிமகனாக உள்நுழையவும்.',
+    allFieldsRequired: 'தேவையான அனைத்து புலங்களையும் நிரப்ப வேண்டும்.',
+    passwordLengthError: 'கடவுச்சொல் குறைந்தது 8 எழுத்துகள் இருக்க வேண்டும்.',
+    passwordsDoNotMatch: 'கடவுச்சொற்கள் பொருந்தவில்லை.',
+    
+    quickDemoMenu: 'டெமோ நற்சான்றுகள் மற்றும் பங்கு தேர்வி',
+    showDemo: 'பங்குகளைக் காட்டு',
+    hideDemo: 'பங்குகளை மறை',
+    clickToAutofill: 'தானாக நிரப்பி உள்நுழைய கிளிக் செய்யவும்:',
+  },
+
+  ml: {
+    portalBadge: 'ഔദ്യോഗിക സർക്കാർ പോർട്ടൽ',
+    appTitle: 'സാറ (SARA)',
+    appSubtitle: 'സ്മാർട്ട് പബ്ലിക് ഗ്രീവൻസ് അക്കൗണ്ടബിലിറ്റി അസിസ്റ്റന്റ്',
+    chooseAccess: 'SARA എങ്ങനെ ആക്‌സസ് ചെയ്യണമെന്ന് തിരഞ്ഞെടുക്കുക',
+    welcomeHeading: 'SARA-ലേക്ക് സ്വാഗതം',
+    
+    citizenRole: 'പൗരൻ (Citizen)',
+    citizenDesc: 'പരാതികൾ നൽകുകയും ട്രാക്ക് ചെയ്യുകയും ചെയ്യുക',
+    citizenDetail: 'പരാതികൾ സമർപ്പിക്കുക, SLA സമയം നിരീക്ഷിക്കുക.',
+    
+    officerRole: 'ഉദ്യോഗസ്ഥൻ (Officer)',
+    officerDesc: 'അനുവദിച്ച പരാതികൾ പരിഹരിക്കുക',
+    officerDetail: 'കേസുകൾ സ്വീകരിക്കുക, പരിഹാര തെളിവുകൾ അപ്‌ലോഡ് ചെയ്യുക.',
+    
+    supervisorRole: 'സൂപ്പർവൈസർ (Supervisor)',
+    supervisorDesc: 'വകുപ്പ് പ്രകടനം വിലയിരുത്തുക',
+    supervisorDetail: 'SLA ലംഘനങ്ങൾ നിരീക്ഷിക്കുക, ജോലികൾ മേൽനോട്ടം വഹിക്കുക.',
+    
+    adminRole: 'അഡ്മിൻ (Admin)',
+    adminDesc: 'സിസ്റ്റം പ്രവർത്തനങ്ങൾ നിയന്ത്രിക്കുക',
+    adminDetail: 'വകുപ്പുകൾ കോൺഫിഗർ ചെയ്യുക, ഉപയോക്താക്കളെ നിയന്ത്രിക്കുക.',
+    
+    signInTitle: 'ലോഗിൻ',
+    citizenSignInSub: 'നിങ്ങളുടെ പൗര ഡാഷ്‌ബോർഡ് ആക്‌സസ് ചെയ്യാൻ ലോഗിൻ ചെയ്യുക.',
+    officerSignInSub: 'അനുവദിച്ച പരാതികൾ നിയന്ത്രിക്കാൻ ലോഗിൻ ചെയ്യുക.',
+    supervisorSignInSub: 'വകുപ്പ് പ്രകടനം നിരീക്ഷിക്കാൻ ലോഗിൻ ചെയ്യുക.',
+    adminSignInSub: 'സിസ്റ്റം പ്രവർത്തനങ്ങൾ നിയന്ത്രിക്കാൻ ലോഗിൻ ചെയ്യുക.',
+    
+    backToRoles: 'റോൾ തിരഞ്ഞെടുപ്പിലേക്ക് തിരികെ പോകുക',
+    emailLabel: 'ഇമെയിൽ വിലാസം / യൂസർ നെയിം',
+    emailPlaceholder: 'ഉദാ: citizen@sara.gov',
+    passwordLabel: 'പാസ്‌വേഡ്',
+    passwordPlaceholder: '••••••••',
+    rememberMe: 'എന്നെ ഓർക്കുക',
+    forgotPassword: 'പാസ്‌വേഡ് മറന്നോ?',
+    signInBtn: 'സൈൻ ഇൻ',
+    authenticating: 'പരിശോധിക്കുന്നു...',
+    noAccount: 'അക്കൗണ്ട് ഇല്ലേ?',
+    createCitizenAccount: 'പൗര അക്കൗണ്ട് സൃഷ്ടിക്കുക',
+    
+    signupTitle: 'പൗര അക്കൗണ്ട് സൃഷ്ടിക്കുക',
+    signupSubtitle: 'നിങ്ങളുടെ പരാതി പരിഹാര പ്രൊഫൈൽ രജിസ്റ്റർ ചെയ്യുക',
+    signupNote: 'പൊതു രജിസ്ട്രേഷൻ പൗര അക്കൗണ്ടുകൾ മാത്രം സൃഷ്ടിക്കുന്നു.',
+    fullNameLabel: 'പൂർണ്ണമായ പേര്',
+    fullNamePlaceholder: 'ഉദാ: ജോൺ ഡോ',
+    phoneLabel: 'ഫോൺ നമ്പർ',
+    phonePlaceholder: '+91 98765 43210',
+    preferredLangLabel: 'തിരഞ്ഞെടുത്ത ഭാഷ',
+    confirmPasswordLabel: 'പാസ്‌വേഡ് സ്ഥിരീകരിക്കുക',
+    confirmPasswordPlaceholder: 'പാസ്‌വേഡ് വീണ്ടും നൽകുക',
+    signUpBtn: 'സൈൻ അപ്പ്',
+    creatingProfile: 'പ്രൊഫൈൽ സൃഷ്ടിക്കുന്നു...',
+    alreadyHaveAccount: 'ഇതിനകം അക്കൗണ്ട് ഉണ്ടോ?',
+    
+    invalidCredentials: 'തെറ്റായ ഇമെയിൽ അല്ലെങ്കിൽ പാസ്‌വേഡ്.',
+    roleMismatchError: 'തെറ്റായ ലോഗിൻ തരം. ഈ വിവരങ്ങൾ {actualRole} അക്കൗണ്ടിന്റേതാണ്. ദയവായി {actualRole} ലോഗിൻ തിരഞ്ഞെടുക്കുക.',
+    inactiveAccount: 'നിങ്ങളുടെ അക്കൗണ്ട് ഇപ്പോൾ നിർജ്ജീവമാണ്.',
+    sessionExpired: 'നിങ്ങളുടെ സെഷൻ കാലാവധി കഴിഞ്ഞു.',
+    signupSuccess: 'അക്കൗണ്ട് വിജയകരമായി സൃഷ്ടിച്ചു. ദയവായി പൗരനായി ലോഗിൻ ചെയ്യുക.',
+    allFieldsRequired: 'എല്ലാ ഫീൽഡുകളും പൂരിപ്പിക്കേണ്ടതുണ്ട്.',
+    passwordLengthError: 'പാസ്‌വേഡിന് കുറഞ്ഞത് 8 അക്ഷരങ്ങൾ വേണം.',
+    passwordsDoNotMatch: 'പാസ്‌വേഡുകൾ പൊരുത്തപ്പെടുന്നില്ല.',
+    
+    quickDemoMenu: 'ഡെമോ ലോഗിൻ വിവരം',
+    showDemo: 'റോളുകൾ കാണിക്കുക',
+    hideDemo: 'റോളുകൾ മറയ്ക്കുക',
+    clickToAutofill: 'ലോഗിൻ ചെയ്യാൻ ക്ലിക്ക് ചെയ്യുക:',
+  },
+
+  mr: {
+    portalBadge: 'अधिकृत शासकीय पोर्टल',
+    appTitle: 'सार (SARA)',
+    appSubtitle: 'स्मार्ट उत्तरदायित्व आणि संसाधन वाटप सहाय्यक',
+    chooseAccess: 'आपण SARA कसे ऍक्सेस करू इच्छिता ते निवडा',
+    welcomeHeading: 'SARA मध्ये आपले स्वागत आहे',
+    
+    citizenRole: 'नागरिक (Citizen)',
+    citizenDesc: 'नागरिक तक्रारी नोंदवा आणि मागोवा घ्या',
+    citizenDetail: 'तक्रारी नोंदवा, SLA वेळेचे निरीक्षण करा.',
+    
+    officerRole: 'अधिकारी (Officer)',
+    officerDesc: 'नियुक्त तक्रारींचे व्यवस्थापन आणि निवारण करा',
+    officerDetail: 'प्रकरणे स्वीकारा, निवारण पुरावे अपलोड करा.',
+    
+    supervisorRole: 'पर्यवेक्षक (Supervisor)',
+    supervisorDesc: 'निवारणांचे पुनरावलोकन करा आणि विभागीय कामगिरीवर लक्ष ठेवा',
+    supervisorDetail: 'SLA उल्लंघनांचे निरीक्षण करा आणि कामाचे पर्यवेक्षण करा.',
+    
+    adminRole: 'प्रशासक (Admin)',
+    adminDesc: 'विभाग, वापरकर्ते आणि प्रणाली कार्यपद्धती व्यवस्थापित करा',
+    adminDetail: 'प्रणाली कॉन्फिगर करा आणि वापरकर्ते व्यवस्थापित करा.',
+    
+    signInTitle: 'लॉगिन',
+    citizenSignInSub: 'आपल्या नागरिक डॅशबोर्डवर जाण्यासाठी लॉगिन करा.',
+    officerSignInSub: 'नियुक्त तक्रारींचे व्यवस्थापन करण्यासाठी लॉगिन करा.',
+    supervisorSignInSub: 'विभागीय कामगिरीवर लक्ष ठेवण्यासाठी लॉगिन करा.',
+    adminSignInSub: 'प्रणाली कार्यपद्धती व्यवस्थापित करण्यासाठी लॉगिन करा.',
+    
+    backToRoles: 'भूमिका निवडीवर परत जा',
+    emailLabel: 'ईमेल पत्ता / वापरकर्ता नाव',
+    emailPlaceholder: 'उदा: citizen@sara.gov',
+    passwordLabel: 'पासवर्ड',
+    passwordPlaceholder: '••••••••',
+    rememberMe: 'मला लक्षात ठेवा',
+    forgotPassword: 'पासवर्ड विसरलात?',
+    signInBtn: 'साइन इन',
+    authenticating: 'प्रमाणित करत आहे...',
+    noAccount: 'खाते नाही?',
+    createCitizenAccount: 'नागरिक खाते तयार करा',
+    
+    signupTitle: 'नागरिक खाते तयार करा',
+    signupSubtitle: 'आपली तक्रार निवारण प्रोफाइल नोंदवा',
+    signupNote: 'सार्वजनिक नोंदणीद्वारे केवळ नागरिक खाती तयार केली जातात.',
+    fullNameLabel: 'पूर्ण नाव',
+    fullNamePlaceholder: 'उदा: जॉन डो',
+    phoneLabel: 'फोन नंबर',
+    phonePlaceholder: '+91 98765 43210',
+    preferredLangLabel: 'पसंतीची भाषा',
+    confirmPasswordLabel: 'पासवर्डची पुष्टी करा',
+    confirmPasswordPlaceholder: 'पासवर्ड पुन्हा टाका',
+    signUpBtn: 'साइन अप',
+    creatingProfile: 'प्रोफाइल तयार करत आहे...',
+    alreadyHaveAccount: 'आधीच खाते आहे का?',
+    
+    invalidCredentials: 'अवैध ईमेल किंवा पासवर्ड.',
+    roleMismatchError: 'चुकीचा लॉगिन प्रकार. ही माहिती {actualRole} खात्याची आहे. कृपया {actualRole} लॉगिन निवडा.',
+    inactiveAccount: 'आपले खाते सध्या निष्क्रिय आहे.',
+    sessionExpired: 'आपले सत्र संपले आहे.',
+    signupSuccess: 'खाते यशस्वीरित्या तयार केले गेले. कृपया नागरिक म्हणून साइन इन करा.',
+    allFieldsRequired: 'सर्व आवश्यक फील्ड भरणे आवश्यक आहे.',
+    passwordLengthError: 'पासवर्ड किमान 8 अक्षरांचा असावा.',
+    passwordsDoNotMatch: 'पासवर्ड जुळत नाहीत.',
+    
+    quickDemoMenu: 'डेमो माहिती आणि भूमिका निवडक',
+    showDemo: 'भूमिका दाखवा',
+    hideDemo: 'भूमिका लपवा',
+    clickToAutofill: 'ऑटोफिल आणि साइन इन करण्यासाठी क्लिक करा:',
+  },
+
+  bn: {
+    portalBadge: 'সরকারি অফিশিয়াল পোর্টাল',
+    appTitle: 'সারা (SARA)',
+    appSubtitle: 'স্মার্ট দায়বদ্ধতা এবং সম্পদ বরাদ্দ সহকারী',
+    chooseAccess: 'আপনি কীভাবে SARA অ্যাক্সেস করতে চান তা চয়ন করুন',
+    welcomeHeading: 'SARA-তে আপনাকে স্বাগতম',
+    
+    citizenRole: 'নাগরিক (Citizen)',
+    citizenDesc: 'নাগরিক অভিযোগ জমা দিন এবং ট্র্যাক করুন',
+    citizenDetail: 'অভিযোগ দায়ের করুন, SLA সময় ট্র্যাক করুন।',
+    
+    officerRole: 'কর্মকর্তা (Officer)',
+    officerDesc: 'বরাদ্দকৃত অভিযোগ পরিচালনা ও সমাধান করুন',
+    officerDetail: 'মামলা গ্রহণ করুন, সমাধানের প্রমাণ আপলোড করুন।',
+    
+    supervisorRole: 'সুপারভাইজার (Supervisor)',
+    supervisorDesc: 'সমাধান পর্যালোচনা এবং বিভাগীয় পারফরম্যান্স পর্যবেক্ষণ করুন',
+    supervisorDetail: 'SLA লঙ্ঘন পর্যবেক্ষণ করুন, কাজের চাপ দেখুন।',
+    
+    adminRole: 'অ্যাডমিন (Admin)',
+    adminDesc: 'বিভাগ, ব্যবহারকারী এবং সিস্টেম পরিচালনা করুন',
+    adminDetail: 'সিস্টেম কনফিগার করুন এবং ব্যবহারকারী পরিচালনা করুন।',
+    
+    signInTitle: 'লগইন',
+    citizenSignInSub: 'আপনার নাগরিক ড্যাশবোর্ড অ্যাক্সেস করতে লগইন করুন।',
+    officerSignInSub: 'বরাদ্দকৃত অভিযোগ পরিচালনা করতে লগইন করুন।',
+    supervisorSignInSub: 'বিভাগীয় পারফরম্যান্স পর্যবেক্ষণ করতে লগইন করুন।',
+    adminSignInSub: 'সিস্টেম পরিচালনা করতে লগইন করুন।',
+    
+    backToRoles: 'ভূমিকা নির্বাচনে ফিরে যান',
+    emailLabel: 'ইমেল ঠিকানা / ব্যবহারকারীর নাম',
+    emailPlaceholder: 'যেমন citizen@sara.gov',
+    passwordLabel: 'পাসওয়ার্ড',
+    passwordPlaceholder: '••••••••',
+    rememberMe: 'আমাকে মনে রাখুন',
+    forgotPassword: 'পাসওয়ার্ড ভুলে গেছেন?',
+    signInBtn: 'সাইন ইন',
+    authenticating: 'যাচাই করা হচ্ছে...',
+    noAccount: 'অ্যাকাউন্ট নেই?',
+    createCitizenAccount: 'নাগরিক অ্যাকাউন্ট তৈরি করুন',
+    
+    signupTitle: 'নাগরিক অ্যাকাউন্ট তৈরি করুন',
+    signupSubtitle: 'আপনার স্মার্ট অভিযোগ সমাধান প্রোফাইল নিবন্ধন করুন',
+    signupNote: 'পাবলিক রেজিস্ট্রেশন শুধুমাত্র নাগরিক অ্যাকাউন্ট তৈরি করে।',
+    fullNameLabel: 'সম্পূর্ণ নাম',
+    fullNamePlaceholder: 'যেমন জন ডো',
+    phoneLabel: 'ফোন নম্বর',
+    phonePlaceholder: '+91 98765 43210',
+    preferredLangLabel: 'পছন্দের ভাষা',
+    confirmPasswordLabel: 'পাসওয়ার্ড নিশ্চিত করুন',
+    confirmPasswordPlaceholder: 'পাসওয়ার্ড পুনরায় লিখুন',
+    signUpBtn: 'সাইন আপ',
+    creatingProfile: 'প্রোফাইল তৈরি হচ্ছে...',
+    alreadyHaveAccount: 'ইতিমধ্যেই একটি অ্যাকাউন্ট আছে?',
+    
+    invalidCredentials: 'অবৈধ ইমেল বা পাসওয়ার্ড।',
+    roleMismatchError: 'ভুল লগইন ধরন। এই তথ্যগুলো একটি {actualRole} অ্যাকাউন্টের। অনুগ্রহ করে {actualRole} লগইন নির্বাচন করুন।',
+    inactiveAccount: 'আপনার অ্যাকাউন্ট বর্তমানে নিষ্ক্রিয়।',
+    sessionExpired: 'আপনার সেশনের মেয়াদ শেষ হয়ে গেছে।',
+    signupSuccess: 'অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে। অনুগ্রহ করে নাগরিক হিসেবে সাইন ইন করুন।',
+    allFieldsRequired: 'সমস্ত প্রয়োজনীয় ঘর পূরণ করতে হবে।',
+    passwordLengthError: 'পাসওয়ার্ড অন্তত ৮ অক্ষরের হতে হবে।',
+    passwordsDoNotMatch: 'পাসওয়ার্ড মেলেনি।',
+    
+    quickDemoMenu: 'ডেমো লগইন তথ্য',
+    showDemo: 'ভূমিকা দেখান',
+    hideDemo: 'ভূমিকা লুকান',
+    clickToAutofill: 'সাইন ইন করতে ক্লিক করুন:',
+  },
+};
+
+export function getTranslation(lang: SupportedLanguage, key: string, params?: Record<string, string>): string {
+  const dictionary = AUTH_TRANSLATIONS[lang] || AUTH_TRANSLATIONS['en'];
+  let text = dictionary[key] || AUTH_TRANSLATIONS['en'][key] || key;
+  
+  if (params) {
+    Object.keys(params).forEach((paramKey) => {
+      text = text.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), params[paramKey]);
+    });
+  }
+  
+  return text;
+}

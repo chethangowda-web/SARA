@@ -161,6 +161,71 @@ async def calculate_risk_score(db: AsyncSession, grievance: Grievance, current_t
     total_score = min(100, sum(factors.values()))
     return total_score, factors
 
+async def translate_text(text: str, target_lang: str, gemini_api_key: Optional[str] = None) -> str:
+    if target_lang == "en" or not text.strip():
+        return text
+    
+    # Simple fallback dictionary for common notification messages
+    fallbacks = {
+        "kn": {
+            "Resolution Approved": "ಪರಿಹಾರವನ್ನು ಅಂಗೀಕರಿಸಲಾಗಿದೆ",
+            "The resolution for grievance": "ದೂರಿನ ಪರಿಹಾರವನ್ನು",
+            "has been approved. Please verify the resolution.": "ಅಂಗೀಕರಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಪರಿಹಾರವನ್ನು ಪರಿಶೀಲಿಸಿ.",
+            "Resolution Submitted": "ಪರಿಹಾರವನ್ನು ಸಲ್ಲಿಸಲಾಗಿದೆ",
+            "A resolution for grievance": "ದೂರಿನ ಪರಿಹಾರವನ್ನು ಸಲ್ಲಿಸಲಾಗಿದೆ ಮತ್ತು ಇಲಾಖೆಯ ಮೇಲ್ವಿಚಾರಕರ ಪರಿಶೀಲನೆಗಾಗಿ ಕಾಯಲಾಗುತ್ತಿದೆ.",
+            "has been submitted and is awaiting department supervisor review.": "ಸಲ್ಲಿಸಲಾಗಿದೆ ಮತ್ತು ಇಲಾಖೆಯ ಮೇಲ್ವಿಚಾರಕರ ಪರಿಶೀಲನೆಗಾಗಿ ಕಾಯಲಾಗುತ್ತಿದೆ.",
+            "Grievance Successfully Registered": "ದೂರು ಯಶಸ್ವಿಯಾಗಿ ನೋಂದಾಯಿಸಲ್ಪಟ್ಟಿದೆ",
+            "Your complaint has been immutably logged into SARA governance tracking.": "ನಿಮ್ಮ ದೂರನ್ನು ಸಾರಾ ಆಡಳಿತ ಟ್ರ್ಯಾಕಿಂಗ್‌ನಲ್ಲಿ ಲಾಗ್ ಮಾಡಲಾಗಿದೆ.",
+            "Grievance Assigned": "ದೂರನ್ನು ನಿಯೋಜಿಸಲಾಗಿದೆ",
+            "You have been assigned grievance": "ದೂರನ್ನು ನಿಮಗೆ ನಿಯೋಜಿಸಲಾಗಿದೆ"
+        },
+        "hi": {
+            "Resolution Approved": "समाधान स्वीकृत",
+            "The resolution for grievance": "शिकायत का समाधान",
+            "has been approved. Please verify the resolution.": "स्वीकृत कर दिया गया है। कृपया समाधान का सत्यापन करें.",
+            "Resolution Submitted": "समाधान प्रस्तुत",
+            "A resolution for grievance": "शिकायत का समाधान प्रस्तुत किया गया है और विभाग पर्यवेक्षक की समीक्षा की प्रतीक्षा है.",
+            "has been submitted and is awaiting department supervisor review.": "प्रस्तुत किया गया है और विभाग पर्यवेक्षक की समीक्षा की प्रतीक्षा है.",
+            "Grievance Successfully Registered": "शिकायत सफलतापूर्वक पंजीकृत",
+            "Your complaint has been immutably logged into SARA governance tracking.": "आपकी शिकायत को SARA ट्रैकिंग में दर्ज कर लिया गया है।",
+            "Grievance Assigned": "शिकायत आवंटित",
+            "You have been assigned grievance": "आपको शिकायत आवंटित की गई है"
+        }
+    }
+    
+    # Try Gemini translation
+    if gemini_api_key:
+        import google.generativeai as genai
+        try:
+            genai.configure(api_key=gemini_api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            lang_name = {
+                "kn": "Kannada",
+                "hi": "Hindi",
+                "te": "Telugu",
+                "ta": "Tamil",
+                "ml": "Malayalam",
+                "mr": "Marathi",
+                "bn": "Bengali"
+            }.get(target_lang, target_lang)
+            prompt = f"Translate the following text to {lang_name}. Respond with ONLY the translated text, do not add explanation, do not add quotes:\n\n{text}"
+            response = model.generate_content(prompt, generation_config={"temperature": 0.1, "max_output_tokens": 500})
+            translated = response.text.strip()
+            if translated:
+                return translated
+        except Exception:
+            pass
+            
+    # Heuristic fallback dictionary search
+    lang_dict = fallbacks.get(target_lang, {})
+    replaced = False
+    for eng, trans in lang_dict.items():
+        if eng in text:
+            text = text.replace(eng, trans)
+            replaced = True
+            
+    return text  # Fallback to original/partially-translated text
+
 async def create_in_app_notification(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -170,8 +235,19 @@ async def create_in_app_notification(
     notification_type: str
 ) -> Notification:
     """
-    Creates and records a user notification.
+    Creates and records a user notification, translating it to their preferred language if necessary.
     """
+    # 1. Fetch user to check preferred language
+    res = await db.execute(select(User).where(User.id == user_id))
+    user = res.scalars().first()
+    preferred_lang = user.preferred_language if user else "en"
+    
+    # 2. Translate title and message if preferred language is not English
+    if preferred_lang != "en":
+        api_key = settings.GEMINI_API_KEY if settings.GEMINI_API_KEY and "your_gemini_api_key" not in settings.GEMINI_API_KEY else None
+        title = await translate_text(title, preferred_lang, api_key)
+        message = await translate_text(message, preferred_lang, api_key)
+
     notif = Notification(
         user_id=user_id,
         grievance_id=grievance_id,

@@ -95,6 +95,47 @@ export async function resolveGrievance(id: string, resolutionNotes: string) {
   });
 }
 
+export async function reviewGrievance(id: string, action: 'APPROVE' | 'REJECT', reason?: string) {
+  return apiFetch<Grievance>(`/grievances/${id}/review`, {
+    method: 'POST',
+    body: JSON.stringify({
+      action,
+      reason: reason || undefined,
+    }),
+  });
+}
+
+export async function holdGrievance(id: string, reason: string, expected_resume_at: string, note?: string, evidence_url?: string) {
+  return apiFetch<Grievance>(`/grievances/${id}/hold`, {
+    method: 'POST',
+    body: JSON.stringify({ reason, expected_resume_at, note, evidence_url }),
+  });
+}
+
+export async function resumeGrievance(id: string, note?: string) {
+  return apiFetch<Grievance>(`/grievances/${id}/resume`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  });
+}
+
+export async function requestAbortGrievance(id: string, reason: string, note?: string, evidence_url?: string) {
+  return apiFetch<Grievance>(`/grievances/${id}/abort-request`, {
+    method: 'POST',
+    body: JSON.stringify({ reason, note, evidence_url }),
+  });
+}
+
+export async function reviewAbortGrievance(id: string, action: 'APPROVE' | 'REJECT', reason?: string) {
+  return apiFetch<Grievance>(`/grievances/${id}/abort-review`, {
+    method: 'POST',
+    body: JSON.stringify({
+      action,
+      reason: reason || undefined,
+    }),
+  });
+}
+
 export async function assignOfficerToGrievance(id: string, officerId: string) {
   return apiFetch<Grievance>(`/grievances/${id}/assign`, {
     method: 'POST',
@@ -111,6 +152,20 @@ export async function routeGrievanceToDepartment(id: string, departmentId: strin
 
 export async function fetchDepartments() {
   return apiFetch<any[]>('/admin/departments');
+}
+
+export interface OfficerSummary {
+  id: string;
+  full_name: string;
+  email: string;
+  department_id: string | null;
+}
+
+export async function fetchOfficers(departmentId?: string) {
+  const url = departmentId
+    ? `/admin/officers?department_id=${encodeURIComponent(departmentId)}`
+    : '/admin/officers';
+  return apiFetch<OfficerSummary[]>(url);
 }
 
 export async function listDepartmentGrievances(limit = 50, offset = 0) {

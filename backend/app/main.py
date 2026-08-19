@@ -1,12 +1,22 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.core.database import SessionLocal
+    from app.core.seed import seed_data
+    async with SessionLocal() as session:
+        await seed_data(session)
+    yield
 
 app = FastAPI(
     title="SARA — Smart Accountability & Resolution Assistant",
     description="AI-powered public grievance accountability layer API",
     version="1.0.0",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan,
 )
 
 # Set all CORS enabled origins
@@ -49,17 +59,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 import uuid
 
-from app.core.seed import seed_data
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    """
-    Ensure reference data (departments + demo users) exists on startup so a
-    fresh deployment is immediately usable.
-    """
-    from app.core.database import SessionLocal
-    async with SessionLocal() as session:
-        await seed_data(session)
+# Lifespan handles startup seeding automatically
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

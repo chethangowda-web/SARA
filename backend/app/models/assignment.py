@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import ForeignKey, DateTime, Boolean, func
+from sqlalchemy import ForeignKey, DateTime, Boolean, func, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -13,6 +13,8 @@ class Assignment(Base):
     assigned_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     unassigned_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=True)
+    workload_snapshot: Mapped[dict] = mapped_column(JSON, nullable=True)
 
     # Relationships
     grievance = relationship("Grievance", back_populates="assignments")
