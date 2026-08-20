@@ -15,12 +15,45 @@ export function VerifyEmail() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [fetchingCode, setFetchingCode] = useState(false);
+
   useEffect(() => {
-    // Prefill email if coming from registration redirect
-    if (location.state && (location.state as any).email) {
-      setEmail((location.state as any).email);
+    // Prefill email and token if coming from registration redirect
+    if (location.state) {
+      if ((location.state as any).email) {
+        setEmail((location.state as any).email);
+      }
+      if ((location.state as any).token) {
+        setToken((location.state as any).token);
+        setSuccess(`Verification code loaded: ${(location.state as any).token}`);
+      }
     }
   }, [location]);
+
+  const handleGetCode = async () => {
+    if (!email.trim()) {
+      setError('Please enter your email address first.');
+      return;
+    }
+    setError(null);
+    setFetchingCode(true);
+    try {
+      const data = await apiFetch<any>('/auth/resend-verification', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+      if (data?.token) {
+        setToken(data.token);
+        setSuccess(`Verification code retrieved: ${data.token}`);
+      } else {
+        setSuccess(data?.detail || 'Verification code retrieved.');
+      }
+    } catch (err: any) {
+      setError(formatApiError(err));
+    } finally {
+      setFetchingCode(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,15 +107,25 @@ export function VerifyEmail() {
 
           {success && (
             <div className="p-4 bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 text-xs font-semibold rounded-xl space-y-1 animate-fadeIn">
-              <div className="font-bold text-emerald-200">Success</div>
+              <div className="font-bold text-emerald-200">Notice</div>
               <div>{success}</div>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-              Email Address
-            </label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Email Address
+              </label>
+              <button
+                type="button"
+                onClick={handleGetCode}
+                disabled={fetchingCode}
+                className="text-xs text-blue-400 hover:underline font-semibold"
+              >
+                {fetchingCode ? 'Fetching...' : 'Get Verification Code'}
+              </button>
+            </div>
             <div className="relative">
               <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
               <input

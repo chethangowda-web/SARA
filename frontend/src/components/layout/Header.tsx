@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { apiFetch } from '../../api/client';
 import Avatar from '../ui/Avatar';
 import Dropdown from '../ui/Dropdown';
 import { Bell, Menu, Search, LogOut, User as UserIcon, ShieldCheck } from 'lucide-react';
@@ -22,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMobileSidebar,
   onSearchClick,
 }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshAccessToken } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -54,6 +55,43 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Actions, Notification Bell, User Dropdown */}
       <div className="flex items-center gap-3">
+        {/* Role Switcher for Admin / Authorized Accounts */}
+        {user?.role === 'ADMIN' ? (
+          <button
+            onClick={async () => {
+              try {
+                await apiFetch('/auth/switch-role?target_role=CITIZEN', { method: 'POST' });
+                await refreshAccessToken();
+                navigate('/citizen');
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-950/80 border border-blue-700/80 text-xs text-blue-300 hover:bg-blue-900 font-bold transition shadow-sm"
+            title="Switch to Citizen Portal View"
+          >
+            <UserIcon className="w-3.5 h-3.5" />
+            <span>Switch to Citizen View</span>
+          </button>
+        ) : ['iamchethen2813@gmail.com', 'chethangowdaa2813@gmail.com', 'iamchethan2813@gmail.com'].includes(user?.email || '') ? (
+          <button
+            onClick={async () => {
+              try {
+                await apiFetch('/auth/switch-role?target_role=ADMIN', { method: 'POST' });
+                await refreshAccessToken();
+                navigate('/admin');
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/80 border border-purple-700/80 text-xs text-purple-300 hover:bg-purple-900 font-bold transition shadow-sm"
+            title="Switch to Admin Command Center View"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Switch to Admin View</span>
+          </button>
+        ) : null}
+
         {/* Global Quick Search Button */}
         <button
           onClick={onSearchClick}

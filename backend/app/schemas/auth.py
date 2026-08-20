@@ -59,6 +59,7 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    requested_role: Optional[str] = None
 
 class UserProfile(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -71,6 +72,7 @@ class UserProfile(BaseModel):
     phone: Optional[str] = None
     date_of_birth: Optional[date] = None
     email_verified: bool
+    verification_token: Optional[str] = None
     auth_provider: str
     last_login_at: Optional[datetime] = None
     created_at: datetime
@@ -83,6 +85,7 @@ class Token(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     id_token: str
+    requested_role: Optional[str] = None
 
 class EmailVerificationRequest(BaseModel):
     email: EmailStr

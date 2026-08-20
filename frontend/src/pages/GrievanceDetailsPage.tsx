@@ -10,6 +10,7 @@ import Timeline from '../components/ui/Timeline';
 import Avatar from '../components/ui/Avatar';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
+import GrievanceWorkflow from '../components/ui/GrievanceWorkflow';
 import { formatApiError } from '../api/client';
 import {
   fetchGrievanceById,
@@ -222,6 +223,11 @@ export function GrievanceDetailsPage() {
             </div>
           </div>
         </Card>
+
+        {/* Workflow Actions (Admin, Supervisor, Officer) */}
+        {!isCitizen && (
+          <GrievanceWorkflow grievance={grievance} onUpdate={loadData} />
+        )}
 
         {/* Citizen Resolution Verification Alert Panel */}
         {canVerify && (

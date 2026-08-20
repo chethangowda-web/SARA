@@ -16,7 +16,7 @@ interface AuthContextType {
   user: UserProfile | null;
   accessToken: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, requestedRole?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<string | null>;
 }
@@ -51,10 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, requestedRole?: string) => {
     const data = await apiFetch<{ access_token: string; user: UserProfile }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, requested_role: requestedRole }),
     });
     setAccessToken(data.access_token);
     setUser(data.user);

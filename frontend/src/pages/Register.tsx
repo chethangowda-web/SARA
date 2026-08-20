@@ -82,7 +82,7 @@ export function Register() {
 
     setSubmitting(true);
     try {
-      await apiFetch('/auth/register', {
+      const data = await apiFetch<any>('/auth/register', {
         method: 'POST',
         body: JSON.stringify({
           email,
@@ -92,9 +92,10 @@ export function Register() {
           date_of_birth: dob,
         }),
       });
-      setSuccess('Account created successfully! A verification code has been generated. Please verify your email.');
+      const tokenStr = data?.verification_token ? ` Your Verification Code: ${data.verification_token}` : '';
+      setSuccess(`Account created successfully!${tokenStr}. Redirecting to verification...`);
       setTimeout(() => {
-        navigate('/verify-email', { state: { email } });
+        navigate('/verify-email', { state: { email, token: data?.verification_token } });
       }, 2500);
     } catch (err: any) {
       setError(formatApiError(err));

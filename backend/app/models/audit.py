@@ -1,6 +1,5 @@
 import uuid
-from sqlalchemy import String, DateTime, ForeignKey, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import String, DateTime, ForeignKey, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -26,10 +25,10 @@ class AuditLog(Base):
         nullable=True
     )
     previous_state: Mapped[dict] = mapped_column(
-        JSONB, nullable=True
+        JSON, nullable=True
     )
     new_state: Mapped[dict] = mapped_column(
-        JSONB, nullable=True
+        JSON, nullable=True
     )
     ip_address: Mapped[str] = mapped_column(
         String(45), nullable=True

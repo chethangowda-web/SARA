@@ -57,9 +57,12 @@ async def on_startup() -> None:
     Ensure reference data (departments) exists on startup so a
     fresh deployment is immediately usable.
     """
-    from app.core.database import SessionLocal
-    async with SessionLocal() as session:
-        await seed_data(session)
+    try:
+        from app.core.database import SessionLocal
+        async with SessionLocal() as session:
+            await seed_data(session)
+    except Exception as e:
+        logging.getLogger("sara_startup").warning(f"Database seed on startup skipped: {e}")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

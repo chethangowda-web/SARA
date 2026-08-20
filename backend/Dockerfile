@@ -14,6 +14,11 @@ COPY requirements.txt requirements-dev.txt ./
 # Install python dependencies
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 
+# Copy application source code
+COPY . .
+
 ENV PYTHONPATH=/workspace
 
 EXPOSE 8000
+
+CMD ["sh", "-c", "alembic upgrade head && python -m app.core.seed && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

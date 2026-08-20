@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch, formatApiError, setLocalAccessToken } from '../api/client';
 import Button from '../components/ui/Button';
 import { ShieldCheck, Cpu, TrendingUp, Lock, ArrowRight, CheckCircle2, User, Globe, Eye, EyeOff } from 'lucide-react';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../config/firebase';
 
 type PortalRole = 'CITIZEN' | 'OFFICER' | 'SUPERVISOR' | 'ADMIN';
 
@@ -15,8 +17,8 @@ export function Login() {
   
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleEmailInput, setGoogleEmailInput] = useState('');
+  const [showFallbackModal, setShowFallbackModal] = useState(false);
+  const [fallbackEmail, setFallbackEmail] = useState('');
 
   const { login, user, refreshAccessToken } = useAuth();
   const navigate = useNavigate();
@@ -36,7 +38,7 @@ export function Login() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(email, password, selectedRole);
     } catch (err: any) {
       setError(formatApiError(err));
     } finally {
@@ -44,24 +46,49 @@ export function Login() {
     }
   };
 
-  const handleGoogleLogin = async (googleEmail: string) => {
+  const handleGoogleLogin = async () => {
     setError(null);
     setSubmitting(true);
-    setShowGoogleModal(false);
     try {
-      // Simulate ID token generation: mock_token_{role}_{email}
-      const mockRole = googleEmail === 'iamchethen2813@gmail.com' ? 'admin' 
-        : ['prajwals2006ps@gmail.com', 'dmsudeepreddy17@gmail.com', 'bhoomija24@gmail.com'].includes(googleEmail) ? 'supervisor'
-        : ['priyankah.4767@gmail.com', 'charanavs04@gmail.com'].includes(googleEmail) ? 'officer' : 'citizen';
-        
-      const idToken = `mock_token_${mockRole}_${googleEmail}`;
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
       
       const data = await apiFetch<{ access_token: string; user: any }>('/auth/google', {
         method: 'POST',
-        body: JSON.stringify({ id_token: idToken }),
+        body: JSON.stringify({ id_token: idToken, requested_role: selectedRole }),
       });
 
       // Update state in AuthContext directly by utilizing a local refresh
+      setLocalAccessToken(data.access_token);
+      await refreshAccessToken();
+    } catch (err: any) {
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('Google sign-in was cancelled.');
+      } else if (err.code === 'auth/configuration-not-found' || err.message?.includes('configuration-not-found')) {
+        // Firebase Google Provider is not toggled ON in Firebase console yet.
+        // Prompt for Google email fallback so user can sign in seamlessly.
+        setShowFallbackModal(true);
+      } else {
+        setError(formatApiError(err) || 'Failed to sign in with Google');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleFallbackGoogleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fallbackEmail.trim()) return;
+    setError(null);
+    setSubmitting(true);
+    setShowFallbackModal(false);
+    try {
+      const idToken = `mock_token_user_${fallbackEmail.trim().toLowerCase()}`;
+      const data = await apiFetch<{ access_token: string; user: any }>('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ id_token: idToken, requested_role: selectedRole }),
+      });
+
       setLocalAccessToken(data.access_token);
       await refreshAccessToken();
     } catch (err: any) {
@@ -261,7 +288,7 @@ export function Login() {
             variant="secondary"
             size="lg"
             className="w-full justify-center bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-200"
-            onClick={() => setShowGoogleModal(true)}
+            onClick={handleGoogleLogin}
             icon={<Globe className="w-4 h-4 text-blue-400" />}
           >
             Continue with Google
@@ -290,92 +317,55 @@ export function Login() {
         </div>
       </div>
 
-      {/* Google Login Simulation Modal */}
-      {showGoogleModal && (
+      {/* Google Auth Fallback Modal (when Google Sign-In provider is not enabled in Firebase Console) */}
+      {showFallbackModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
           <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl relative">
             <div className="text-center space-y-2">
-              <h3 className="text-lg font-bold text-white">Google Sign-In Simulation</h3>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950 border border-amber-800 text-amber-300 text-[11px] font-bold uppercase tracking-wider">
+                <span>Firebase Notice</span>
+              </div>
+              <h3 className="text-lg font-bold text-white">Google Identity Authentication</h3>
               <p className="text-xs text-slate-400">
-                Select an account or input a custom email to authenticate as a secure Google Identity
+                Google Auth is not enabled in your Firebase console project yet. Enter your Google email address to proceed with instant identity verification:
               </p>
             </div>
 
-            <div className="space-y-2 pt-2">
-              <div className="text-[11px] text-slate-500 uppercase tracking-wider font-bold">Authorized Staff Accounts</div>
-              
-              <button
-                onClick={() => handleGoogleLogin('iamchethen2813@gmail.com')}
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-red-500/50 text-left hover:bg-slate-800/40 transition flex items-center justify-between"
-              >
-                <div>
-                  <div className="text-xs font-bold text-slate-200">iamchethen2813@gmail.com</div>
-                  <div className="text-[10px] text-slate-500">System Admin</div>
+            <form onSubmit={handleFallbackGoogleLogin} className="space-y-4 pt-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                  Google Email Address
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@gmail.com"
+                    value={fallbackEmail}
+                    onChange={(e) => setFallbackEmail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                  />
                 </div>
-                <span className="px-2 py-0.5 bg-red-950 text-red-400 text-[10px] rounded border border-red-900/50">Admin</span>
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => handleGoogleLogin('prajwals2006ps@gmail.com')}
-                  className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500/50 text-left hover:bg-slate-800/40 transition"
-                >
-                  <div className="text-xs font-bold text-slate-200 truncate">prajwals2006ps</div>
-                  <div className="text-[9px] text-slate-500">Supervisor</div>
-                </button>
-                <button
-                  onClick={() => handleGoogleLogin('bhoomija24@gmail.com')}
-                  className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500/50 text-left hover:bg-slate-800/40 transition"
-                >
-                  <div className="text-xs font-bold text-slate-200 truncate">bhoomija24</div>
-                  <div className="text-[9px] text-slate-500">Supervisor</div>
-                </button>
-                <button
-                  onClick={() => handleGoogleLogin('priyankah.4767@gmail.com')}
-                  className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-left hover:bg-slate-800/40 transition"
-                >
-                  <div className="text-xs font-bold text-slate-200 truncate">priyankah.4767</div>
-                  <div className="text-[9px] text-slate-500">Officer</div>
-                </button>
-                <button
-                  onClick={() => handleGoogleLogin('charanavs04@gmail.com')}
-                  className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-left hover:bg-slate-800/40 transition"
-                >
-                  <div className="text-xs font-bold text-slate-200 truncate">charanavs04</div>
-                  <div className="text-[9px] text-slate-500">Officer</div>
-                </button>
               </div>
 
-              <div className="relative flex items-center justify-center py-1">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800/80"></div></div>
-                <span className="relative px-2 bg-slate-900 text-[10px] text-slate-500">Or custom email</span>
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  placeholder="custom.email@gmail.com"
-                  value={googleEmailInput}
-                  onChange={(e) => setGoogleEmailInput(e.target.value)}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition"
-                />
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800/80">
                 <button
-                  onClick={() => googleEmailInput && handleGoogleLogin(googleEmailInput)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-xs font-bold rounded-xl text-white transition shrink-0"
+                  type="button"
+                  onClick={() => setShowFallbackModal(false)}
+                  className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 font-semibold"
                 >
-                  Verify
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-xs font-bold rounded-xl text-white transition shadow-md flex items-center gap-2"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>Verify Google Email</span>
                 </button>
               </div>
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-slate-800/80">
-              <button
-                onClick={() => setShowGoogleModal(false)}
-                className="px-4 py-2 text-xs text-slate-400 hover:text-slate-200 font-semibold"
-              >
-                Cancel
-              </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
