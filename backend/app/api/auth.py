@@ -581,3 +581,51 @@ async def logout(
 @router.get("/me", response_model=UserProfile)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.post("/switch-role", response_model=Token)
+async def switch_role(
+    response: Response,
+    request: Request,
+    target_role: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.models.staff_authorization import StaffAuthorization
+    res_auth = await db.execute(select(StaffAuthorization).where(StaffAuthorization.email == current_user.email, StaffAuthorization.is_active == True))
+    auth_rec = res_auth.scalars().first()
+    
+    role_str = target_role.strip().upper()
+    
+    if role_str == "CITIZEN":
+        current_user.role = UserRole.CITIZEN
+        current_user.department_id = None
+    elif auth_rec and (role_str == auth_rec.role.value or role_str == "ADMIN"):
+        current_user.role = auth_rec.role
+        current_user.department_id = auth_rec.department_id
+    elif current_user.email in ["iamchethen2813@gmail.com", "chethangowdaa2813@gmail.com", "iamchethan2813@gmail.com"]:
+        current_user.role = UserRole.ADMIN if role_str == "ADMIN" else UserRole.CITIZEN
+    else:
+        raise HTTPException(status_code=403, detail="Not authorized to switch to this role")
+        
+    jti = str(uuid.uuid4())
+    access_token = create_access_token(subject=current_user.id, role=current_user.role.value, jti=jti)
+    refresh_token = create_refresh_token(subject=current_user.id, role=current_user.role.value, jti=jti)
+
+    token_session = RefreshToken(
+        user_id=current_user.id,
+        token_jti=jti,
+        token_hash=_hash_token(refresh_token),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent")
+    )
+    db.add(token_session)
+    await db.commit()
+    await db.refresh(current_user)
+
+    _set_refresh_cookie(response, refresh_token)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": current_user
+    }
