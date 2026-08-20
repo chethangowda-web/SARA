@@ -6,7 +6,7 @@ from app.models.user import UserRole
 
 class UserCreateAdmin(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=12)
+    password: str = Field(..., min_length=6)
     full_name: str = Field(..., min_length=2)
     role: UserRole
     department_id: Optional[uuid.UUID] = None

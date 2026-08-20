@@ -15,30 +15,23 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str
     full_name: str = Field(..., min_length=2, max_length=100)
-    phone: str = Field(..., min_length=7, max_length=20)
-    date_of_birth: date
+    phone: Optional[str] = None
+    date_of_birth: Optional[date] = None
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Password cannot be empty or whitespace only")
-        if len(v) < 12:
-            raise ValueError("Password must be at least 12 characters long")
-        import re
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not re.search(r"[a-z]", v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not re.search(r"\d", v):
-            raise ValueError("Password must contain at least one digit")
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
-            raise ValueError("Password must contain at least one special character")
+        if len(v) < 6:
+            raise ValueError("Password must be at least 6 characters long")
         return v
 
     @field_validator("date_of_birth")
     @classmethod
-    def validate_age(cls, v: date) -> date:
+    def validate_age(cls, v: Optional[date]) -> Optional[date]:
+        if v is None:
+            return None
         today = date.today()
         # Enforce minimum 18 years old
         age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))

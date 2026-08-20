@@ -8,7 +8,7 @@ from sqlalchemy import func
 from app.models.user import User, UserRole
 from app.models.staff_authorization import StaffAuthorization
 from app.models.audit import AuditLog
-from app.core.security import hash_password, verify_password
+from app.core.security import hash_password, verify_password, create_access_token
 
 @pytest.mark.asyncio
 async def test_citizen_registration_validation(client_citizen, db_session):

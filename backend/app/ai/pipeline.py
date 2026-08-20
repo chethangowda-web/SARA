@@ -2,6 +2,7 @@ import uuid
 from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from app.models.user import User, UserRole
 from app.models.grievance import Grievance
@@ -141,4 +142,9 @@ async def process_grievance_ai_pipeline(db: AsyncSession, grievance_id: uuid.UUI
         payload=payload
     )
 
-    return updated_grievance
+    res = await db.execute(
+        select(Grievance)
+        .where(Grievance.id == grievance.id)
+        .options(selectinload(Grievance.citizen), selectinload(Grievance.department))
+    )
+    return res.scalars().first()

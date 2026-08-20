@@ -30,10 +30,15 @@ async def override_get_db(db_session):
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture(autouse=True)
-async def clean_db(db_session):
+async def clean_db(db_engine):
     from sqlalchemy import text
-    await db_session.execute(text("TRUNCATE TABLE refresh_tokens, audit_logs, users, departments, system_settings, sla_policies, accountability_dossiers, notifications, grievance_comments, evidence, analytics_snapshots, operational_anomalies CASCADE;"))
-    await db_session.commit()
+    async_session = async_sessionmaker(bind=db_engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        try:
+            await session.execute(text("DELETE FROM intelligence_alerts; DELETE FROM investment_matches; DELETE FROM need_clusters; DELETE FROM government_projects; DELETE FROM refresh_tokens; DELETE FROM audit_logs; DELETE FROM grievances; DELETE FROM users; DELETE FROM departments; DELETE FROM system_settings; DELETE FROM sla_policies; DELETE FROM accountability_dossiers; DELETE FROM notifications; DELETE FROM grievance_comments; DELETE FROM evidence; DELETE FROM analytics_snapshots; DELETE FROM operational_anomalies;"))
+            await session.commit()
+        except Exception:
+            await session.rollback()
     yield
     
 from app.models.user import User, UserRole

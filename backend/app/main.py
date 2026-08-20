@@ -29,6 +29,8 @@ from app.core.security_headers_middleware import SecurityHeadersMiddleware
 app.add_middleware(SecurityHeadersMiddleware)
 
 from app.api import auth, user_admin, grievances, governance, evidence, comments, notifications, dashboards, analytics
+from app.sangam.api import intelligence as sangam_intelligence
+from app.sangam.api import projects as sangam_projects
 
 # Include routers
 app.include_router(auth.router, prefix=settings.API_V1_STR)
@@ -40,6 +42,8 @@ app.include_router(comments.router, prefix=settings.API_V1_STR)
 app.include_router(notifications.router, prefix=settings.API_V1_STR)
 app.include_router(dashboards.router, prefix=settings.API_V1_STR)
 app.include_router(analytics.router)
+app.include_router(sangam_intelligence.router, prefix=settings.API_V1_STR)
+app.include_router(sangam_projects.router, prefix=settings.API_V1_STR)
 
 @app.get(f"{settings.API_V1_STR}/health", tags=["health"])
 async def health_check():

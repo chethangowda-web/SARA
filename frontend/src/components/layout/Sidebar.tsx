@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  Layers,
 } from 'lucide-react';
 
 export interface SidebarProps {
@@ -50,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse, o
       case 'SUPERVISOR':
         return [
           { label: 'Department Command', path: '/supervisor', exact: true, icon: <LayoutDashboard className="w-5 h-5" /> },
+          { label: 'SARA Intelligence', path: '/admin/intelligence', icon: <Layers className="w-5 h-5" /> },
           { label: 'Department Cases', path: '/supervisor/cases', icon: <Building2 className="w-5 h-5" /> },
           { label: 'Officer Workload', path: '/supervisor/officers', icon: <Users className="w-5 h-5" /> },
           { label: 'Escalation Monitor', path: '/supervisor/escalations', icon: <AlertTriangle className="w-5 h-5" /> },
@@ -57,6 +59,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapse, o
       case 'ADMIN':
         return [
           { label: 'SARA Command Center', path: '/admin', exact: true, icon: <LayoutDashboard className="w-5 h-5" /> },
+          { label: 'Sangam Intelligence', path: '/admin/intelligence', icon: <Layers className="w-5 h-5" /> },
+          { label: 'Need Clusters', path: '/admin/intelligence/needs', icon: <FileText className="w-5 h-5" /> },
+          { label: 'Government Projects', path: '/admin/intelligence/projects', icon: <Building2 className="w-5 h-5" /> },
+          { label: 'Gaps & Alerts', path: '/admin/intelligence/gaps', icon: <ShieldAlert className="w-5 h-5" /> },
+          { label: 'Priority Areas', path: '/admin/intelligence/priorities', icon: <BarChart3 className="w-5 h-5" /> },
           { label: 'Staff Management', path: '/admin/staff', icon: <Users className="w-5 h-5" /> },
           { label: 'Departments', path: '/admin/departments', icon: <Building2 className="w-5 h-5" /> },
           { label: 'Analytics & Trends', path: '/admin/analytics', icon: <BarChart3 className="w-5 h-5" /> },

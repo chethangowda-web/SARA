@@ -25,6 +25,12 @@ import AdminStaffManagement from './pages/admin/AdminStaffManagement';
 
 import GrievanceDetailsPage from './pages/GrievanceDetailsPage';
 
+import { IntelligenceDashboard } from './pages/sangam/IntelligenceDashboard';
+import { NeedClustersPage } from './pages/sangam/NeedClustersPage';
+import { InvestmentProjectsPage } from './pages/sangam/InvestmentProjectsPage';
+import { GapsPage } from './pages/sangam/GapsPage';
+import { PrioritiesPage } from './pages/sangam/PrioritiesPage';
+
 // Root-level redirect to user workspace based on role
 function HomeRedirect() {
   const { user } = useAuth();
@@ -203,6 +209,46 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['ADMIN']}>
                 <AdminAnalyticsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/intelligence"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'SUPERVISOR']}>
+                <IntelligenceDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/intelligence/needs"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'SUPERVISOR']}>
+                <NeedClustersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/intelligence/projects"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'SUPERVISOR']}>
+                <InvestmentProjectsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/intelligence/gaps"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'SUPERVISOR']}>
+                <GapsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/intelligence/priorities"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'SUPERVISOR']}>
+                <PrioritiesPage />
               </ProtectedRoute>
             }
           />
